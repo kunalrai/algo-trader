@@ -1,0 +1,31 @@
+.pulse-green {
+    animation: pulse-green 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-green {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: .5;
+    }
+}
+
+.profit {
+    color: #10b981;
+}
+
+.loss {
+    color: #ef4444;
+}
+
+/* Chart.js Chart Styles */
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+    overflow: hidden;
+}
