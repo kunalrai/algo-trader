@@ -61,7 +61,8 @@ TRADING_PARAMS = {
     "signal_scan_interval": 60,        # Scan for signals every 60 seconds
     "max_open_positions": 3,           # Maximum concurrent positions
     "enable_short": True,              # Enable short positions
-    "enable_long": True                # Enable long positions
+    "enable_long": True,               # Enable long positions
+    "dry_run": True                    # Dry-run mode: analyze only, no actual trading
 }
 
 # Logging

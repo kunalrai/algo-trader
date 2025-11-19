@@ -47,7 +47,7 @@ class CoinDCXFuturesClient:
         try:
             if method == "GET":
                 if authenticated:
-                    # Authenticated GET request
+                    # Authenticated GET request - send JSON body with signature
                     if data is None:
                         data = {}
                     data['timestamp'] = int(time.time() * 1000)
@@ -55,7 +55,8 @@ class CoinDCXFuturesClient:
                     payload = json.dumps(data, separators=(',', ':'))
                     headers = self._get_headers(payload)
 
-                    response = self.session.get(url, data=payload, headers=headers)
+                    # For authenticated GET, CoinDCX expects JSON in request body
+                    response = requests.get(url, headers=headers, data=payload)
                 else:
                     # Public GET request
                     response = self.session.get(url)

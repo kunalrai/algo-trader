@@ -13,9 +13,16 @@ logger = logging.getLogger(__name__)
 class OrderManager:
     """Manage order execution with TP/SL calculation"""
 
-    def __init__(self, client: CoinDCXFuturesClient, risk_config: Dict):
+    def __init__(self, client: CoinDCXFuturesClient, risk_config: Dict, dry_run: bool = False):
         self.client = client
         self.risk_config = risk_config
+        self.dry_run = dry_run
+
+        if self.dry_run:
+            logger.info("=" * 60)
+            logger.info("DRY-RUN MODE ENABLED")
+            logger.info("No actual trades will be executed")
+            logger.info("=" * 60)
 
     def calculate_position_size(self, balance: float, current_price: float,
                                leverage: int, max_position_percent: float) -> float:
@@ -111,7 +118,22 @@ class OrderManager:
                 logger.error(f"Insufficient balance: {balance}")
                 return None
 
-            logger.info(f"Executing {side.upper()} market order for {pair}, size: {size}")
+            logger.info(f"{'[DRY-RUN] ' if self.dry_run else ''}Executing {side.upper()} market order for {pair}, size: {size}")
+
+            if self.dry_run:
+                # Simulate order response
+                logger.info(f"[DRY-RUN] Simulated order executed successfully")
+                return {
+                    'order_id': 'dry-run-order-id',
+                    'pair': pair,
+                    'side': side,
+                    'order_type': 'market_order',
+                    'size': size,
+                    'average_price': 0,  # Will be filled with current price
+                    'position_id': 'dry-run-position-id',
+                    'status': 'filled',
+                    'dry_run': True
+                }
 
             # Execute market order
             order_response = self.client.create_order(
@@ -150,28 +172,50 @@ class OrderManager:
 
         try:
             # Place take profit order
-            logger.info(f"Placing TP order at {tp_price} for position {position_id}")
-            tp_order = self.client.create_take_profit_order(
-                position_id=position_id,
-                price=tp_price,
-                size=size
-            )
-            result['tp_order'] = tp_order
-            logger.info(f"TP order placed successfully: {tp_order}")
+            logger.info(f"{'[DRY-RUN] ' if self.dry_run else ''}Placing TP order at {tp_price} for position {position_id}")
+
+            if self.dry_run:
+                result['tp_order'] = {
+                    'order_id': 'dry-run-tp-order',
+                    'type': 'take_profit',
+                    'price': tp_price,
+                    'size': size,
+                    'dry_run': True
+                }
+                logger.info(f"[DRY-RUN] Simulated TP order placed")
+            else:
+                tp_order = self.client.create_take_profit_order(
+                    position_id=position_id,
+                    price=tp_price,
+                    size=size
+                )
+                result['tp_order'] = tp_order
+                logger.info(f"TP order placed successfully: {tp_order}")
 
         except Exception as e:
             logger.error(f"Error placing TP order: {e}")
 
         try:
             # Place stop loss order
-            logger.info(f"Placing SL order at {sl_price} for position {position_id}")
-            sl_order = self.client.create_stop_loss_order(
-                position_id=position_id,
-                price=sl_price,
-                size=size
-            )
-            result['sl_order'] = sl_order
-            logger.info(f"SL order placed successfully: {sl_order}")
+            logger.info(f"{'[DRY-RUN] ' if self.dry_run else ''}Placing SL order at {sl_price} for position {position_id}")
+
+            if self.dry_run:
+                result['sl_order'] = {
+                    'order_id': 'dry-run-sl-order',
+                    'type': 'stop_loss',
+                    'price': sl_price,
+                    'size': size,
+                    'dry_run': True
+                }
+                logger.info(f"[DRY-RUN] Simulated SL order placed")
+            else:
+                sl_order = self.client.create_stop_loss_order(
+                    position_id=position_id,
+                    price=sl_price,
+                    size=size
+                )
+                result['sl_order'] = sl_order
+                logger.info(f"SL order placed successfully: {sl_order}")
 
         except Exception as e:
             logger.error(f"Error placing SL order: {e}")

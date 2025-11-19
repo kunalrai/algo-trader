@@ -44,7 +44,11 @@ class TradingBot:
             config['indicators'],
             config['indicators']['RSI']
         )
-        self.order_manager = OrderManager(self.client, config['risk_management'])
+        self.order_manager = OrderManager(
+            self.client,
+            config['risk_management'],
+            dry_run=config['trading_params'].get('dry_run', False)
+        )
         self.position_manager = PositionManager(self.client, config['risk_management'])
         self.wallet_manager = WalletManager(self.client)
 
