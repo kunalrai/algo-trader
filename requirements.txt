@@ -1,0 +1,9 @@
+# Cryptocurrency Futures Trading Bot - Dependencies
+
+# Core dependencies
+pandas>=2.0.0
+numpy>=1.24.0
+requests>=2.31.0
+
+# Optional dependencies for enhanced functionality
+python-dotenv>=1.0.0  # For environment variable management
