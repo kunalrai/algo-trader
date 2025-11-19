@@ -6,7 +6,8 @@ Fetches and manages candlestick data for multiple timeframes
 import pandas as pd
 from typing import Dict, List
 import logging
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from coindcx_client import CoinDCXFuturesClient
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,49 @@ class DataFetcher:
     def __init__(self, client: CoinDCXFuturesClient):
         self.client = client
         self.data_cache = {}
+
+    @staticmethod
+    def convert_to_coindcx_symbol(symbol: str) -> str:
+        """
+        Convert standard symbol to CoinDCX futures format
+
+        Args:
+            symbol: Standard symbol like 'BTCUSDT'
+
+        Returns:
+            CoinDCX futures symbol like 'B-BTC_USDT'
+        """
+        # Remove 'USDT' suffix and add futures prefix and format
+        if symbol.endswith('USDT'):
+            base = symbol[:-4]  # Remove 'USDT'
+            return f"B-{base}_USDT"
+        return symbol
+
+    @staticmethod
+    def convert_interval_to_resolution(interval: str) -> str:
+        """
+        Convert timeframe interval to CoinDCX resolution format
+
+        Args:
+            interval: Interval like '5m', '1h', '4h', '1d'
+
+        Returns:
+            Resolution like '5', '60', '240', '1D'
+        """
+        interval_map = {
+            '1m': '1',
+            '5m': '5',
+            '15m': '15',
+            '30m': '30',
+            '1h': '60',
+            '2h': '120',
+            '4h': '240',
+            '6h': '360',
+            '12h': '720',
+            '1d': '1D',
+            '1D': '1D'
+        }
+        return interval_map.get(interval.lower(), interval)
 
     def fetch_candles(self, pair: str, interval: str, limit: int = 500) -> pd.DataFrame:
         """
@@ -32,17 +76,52 @@ class DataFetcher:
             DataFrame with OHLCV data
         """
         try:
-            logger.info(f"Fetching {interval} candles for {pair}")
-            candles = self.client.get_candlestick_data(pair, interval, limit)
+            # Convert symbol to CoinDCX futures format
+            coindcx_pair = self.convert_to_coindcx_symbol(pair)
+            resolution = self.convert_interval_to_resolution(interval)
 
-            if not candles:
+            # Calculate timestamps for the requested period
+            # CoinDCX requires from/to timestamps in seconds
+            to_timestamp = int(time.time())
+
+            # Calculate how many seconds back we need based on interval and limit
+            interval_seconds = {
+                '1': 60,           # 1 minute
+                '5': 300,          # 5 minutes
+                '15': 900,         # 15 minutes
+                '30': 1800,        # 30 minutes
+                '60': 3600,        # 1 hour
+                '120': 7200,       # 2 hours
+                '240': 14400,      # 4 hours
+                '360': 21600,      # 6 hours
+                '720': 43200,      # 12 hours
+                '1D': 86400        # 1 day
+            }
+
+            seconds_per_candle = interval_seconds.get(resolution, 3600)
+            from_timestamp = to_timestamp - (seconds_per_candle * limit)
+
+            logger.info(f"Fetching {interval} candles for {pair} (CoinDCX: {coindcx_pair}, resolution: {resolution})")
+
+            response = self.client.get_candlestick_data(
+                pair=coindcx_pair,
+                resolution=resolution,
+                from_timestamp=from_timestamp,
+                to_timestamp=to_timestamp
+            )
+
+            if not response or response.get('s') != 'ok':
                 logger.warning(f"No candle data received for {pair} {interval}")
+                return pd.DataFrame()
+
+            candles = response.get('data', [])
+            if not candles:
+                logger.warning(f"No candle data in response for {pair} {interval}")
                 return pd.DataFrame()
 
             # Convert to DataFrame
             df = pd.DataFrame(candles)
 
-            # Expected columns: timestamp, open, high, low, close, volume
             # Ensure proper column names and types
             if 'time' in df.columns:
                 df.rename(columns={'time': 'timestamp'}, inplace=True)
