@@ -143,8 +143,37 @@ class SignalGenerator:
             for tf_name, df in multi_tf_data.items():
                 analyses[tf_name] = self.analyze_timeframe(df, tf_name)
 
+            # Calculate support/resistance levels
+            # Short-term: Use 5m or 1h data
+            # Long-term: Use 4h data
+            short_term_sr = {}
+            long_term_sr = {}
+
+            if 'short_term' in multi_tf_data:
+                short_term_sr = TechnicalIndicators.get_support_resistance_levels(
+                    multi_tf_data['short_term'],
+                    timeframe_type='short'
+                )
+            elif 'medium_term' in multi_tf_data:
+                short_term_sr = TechnicalIndicators.get_support_resistance_levels(
+                    multi_tf_data['medium_term'],
+                    timeframe_type='short'
+                )
+
+            if 'long_term' in multi_tf_data:
+                long_term_sr = TechnicalIndicators.get_support_resistance_levels(
+                    multi_tf_data['long_term'],
+                    timeframe_type='long'
+                )
+
             # Combine signals from multiple timeframes
             signal = self._combine_multi_timeframe_signals(pair, analyses)
+
+            # Add support/resistance to signal
+            signal['support_resistance'] = {
+                'short_term': short_term_sr,
+                'long_term': long_term_sr
+            }
 
             return signal
 

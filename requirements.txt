@@ -5,5 +5,9 @@ pandas>=2.0.0
 numpy>=1.24.0
 requests>=2.31.0
 
+# Web Dashboard
+Flask>=3.0.0
+Flask-CORS>=4.0.0
+
 # Optional dependencies for enhanced functionality
 python-dotenv>=1.0.0  # For environment variable management

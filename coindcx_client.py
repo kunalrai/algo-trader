@@ -205,6 +205,81 @@ class CoinDCXFuturesClient:
             logger.error(f"Failed to fetch real-time prices: {e}")
             raise
 
+    def get_orderbook(self, pair: str, depth: int = 50) -> Dict:
+        """
+        Get order book depth for a futures pair
+
+        Args:
+            pair: Trading pair in CoinDCX format (e.g., 'B-BTC_USDT')
+            depth: Order book depth - 10, 20, or 50 (default: 50)
+
+        Returns:
+            Dict with order book data
+            {
+                "ts": 1705483019891,  # timestamp
+                "vs": 27570132,       # version
+                "asks": {
+                    "2001": "2.145",  # price: quantity
+                    "2002": "4.453",
+                    "2003": "2.997"
+                },
+                "bids": {
+                    "1995": "2.618",  # price: quantity
+                    "1996": "1.55"
+                }
+            }
+        """
+        # Validate depth parameter
+        if depth not in [10, 20, 50]:
+            logger.warning(f"Invalid depth {depth}, using 50")
+            depth = 50
+
+        url = f"https://public.coindcx.com/market_data/v3/orderbook/{pair}-futures/{depth}"
+
+        try:
+            response = self.session.get(url)
+            response.raise_for_status()
+            return response.json()
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to fetch order book for {pair}: {e}")
+            raise
+
+    def get_recent_trades(self, pair: str, limit: int = 100) -> List[Dict]:
+        """
+        Get recent trades for a futures pair
+
+        Args:
+            pair: Trading pair in CoinDCX format (e.g., 'B-BTC_USDT')
+            limit: Number of recent trades to fetch (default: 100)
+
+        Returns:
+            List of recent trades
+            [
+                {
+                    "p": 45950.5,    # price
+                    "q": 0.5,        # quantity
+                    "T": 1705483019891,  # timestamp
+                    "m": false       # true if buyer is maker (sell), false if taker (buy)
+                },
+                ...
+            ]
+        """
+        url = f"https://public.coindcx.com/market_data/trade_history"
+        params = {
+            'pair': pair,
+            'limit': limit
+        }
+
+        try:
+            response = self.session.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to fetch trade history for {pair}: {e}")
+            raise
+
     # Currency Conversion Methods
 
     def get_currency_conversions(self) -> List[Dict]:

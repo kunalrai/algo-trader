@@ -3,7 +3,7 @@ Wallet Manager Module
 Manages futures wallet balance and provides balance checking functionality
 """
 
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import logging
 from coindcx_client import CoinDCXFuturesClient
 
@@ -18,25 +18,37 @@ class WalletManager:
         self.cached_balance = None
         self.last_balance_check = None
 
-    def get_futures_balance(self) -> Optional[Dict]:
+    def get_futures_balance(self, currency: str = "USDT") -> Optional[Dict]:
         """
-        Get futures wallet balance
+        Get futures wallet balance for a specific currency
+
+        Args:
+            currency: Currency to get balance for (default: "USDT")
 
         Returns:
-            Dict with balance information
+            Dict with balance information for the specified currency
         """
         try:
             balance_response = self.client.get_futures_balance()
             logger.info(f"Futures balance retrieved: {balance_response}")
 
-            # Parse balance response
-            # Expected structure may vary, adjust based on actual API response
-            if isinstance(balance_response, dict):
+            # API returns a list of wallets for different currencies
+            if isinstance(balance_response, list):
+                # Find the wallet for the requested currency
+                for wallet in balance_response:
+                    if wallet.get('currency_short_name') == currency:
+                        self.cached_balance = wallet
+                        logger.info(f"Found {currency} wallet: {wallet.get('balance')} {currency}")
+                        return wallet
+
+                logger.warning(f"No wallet found for currency: {currency}")
+                # Return first wallet as fallback
+                if len(balance_response) > 0:
+                    self.cached_balance = balance_response[0]
+                    return balance_response[0]
+            elif isinstance(balance_response, dict):
                 self.cached_balance = balance_response
                 return balance_response
-            elif isinstance(balance_response, list) and len(balance_response) > 0:
-                self.cached_balance = balance_response[0]
-                return balance_response[0]
 
             logger.warning("Unexpected balance response format")
             return None
@@ -47,7 +59,7 @@ class WalletManager:
 
     def get_available_balance(self) -> float:
         """
-        Get available balance for trading
+        Get available balance for trading (balance - locked_balance)
 
         Returns:
             Available balance as float
@@ -59,19 +71,16 @@ class WalletManager:
                 logger.warning("No balance data available")
                 return 0.0
 
-            # Try different possible field names
-            available = (
-                balance.get('available_balance') or
-                balance.get('available') or
-                balance.get('free') or
-                balance.get('balance') or
-                0.0
-            )
+            # CoinDCX API returns: balance, locked_balance, cross_order_margin, cross_user_margin
+            total = float(balance.get('balance', 0))
+            locked = float(balance.get('locked_balance', 0))
 
-            available_float = float(available)
-            logger.info(f"Available balance: {available_float}")
+            # Available balance = total balance - locked balance
+            available = round(total - locked, 2)
 
-            return available_float
+            logger.info(f"Available balance: {available} USDT (Total: {total}, Locked: {locked})")
+
+            return available
 
         except Exception as e:
             logger.error(f"Error getting available balance: {e}")
@@ -79,7 +88,7 @@ class WalletManager:
 
     def get_total_balance(self) -> float:
         """
-        Get total futures wallet balance (including margin)
+        Get total futures wallet balance
 
         Returns:
             Total balance as float
@@ -90,15 +99,12 @@ class WalletManager:
             if not balance:
                 return 0.0
 
-            # Try different possible field names
-            total = (
-                balance.get('total_balance') or
-                balance.get('total') or
-                balance.get('balance') or
-                0.0
-            )
+            # CoinDCX API returns 'balance' as the total balance
+            total = round(float(balance.get('balance', 0)), 2)
 
-            return float(total)
+            logger.info(f"Total balance: {total} USDT")
+
+            return total
 
         except Exception as e:
             logger.error(f"Error getting total balance: {e}")
@@ -119,6 +125,37 @@ class WalletManager:
         except Exception as e:
             logger.error(f"Error getting margin details: {e}")
             return None
+
+    def get_all_wallet_balances(self) -> List[Dict]:
+        """
+        Get wallet balances for all currencies
+
+        Returns:
+            List of wallet balances for all currencies
+        """
+        try:
+            wallet_details = self.client.get_wallet_details()
+
+            if not wallet_details:
+                return []
+
+            balances = []
+            for wallet in wallet_details:
+                balances.append({
+                    'currency': wallet.get('currency_short_name'),
+                    'total_balance': float(wallet.get('balance', 0)),
+                    'locked_balance': float(wallet.get('locked_balance', 0)),
+                    'available_balance': float(wallet.get('balance', 0)) - float(wallet.get('locked_balance', 0)),
+                    'cross_order_margin': float(wallet.get('cross_order_margin', 0)),
+                    'cross_user_margin': float(wallet.get('cross_user_margin', 0))
+                })
+
+            logger.info(f"Retrieved balances for {len(balances)} currencies")
+            return balances
+
+        except Exception as e:
+            logger.error(f"Error getting all wallet balances: {e}")
+            return []
 
     def check_sufficient_balance(self, required_amount: float) -> bool:
         """
@@ -151,23 +188,42 @@ class WalletManager:
         Get comprehensive balance summary
 
         Returns:
-            Dict with balance summary
+            Dict with balance summary including locked balances
         """
         try:
-            available = self.get_available_balance()
-            total = self.get_total_balance()
-            margin_details = self.get_margin_details()
+            balance = self.get_futures_balance()
 
+            if not balance:
+                return {
+                    'available_balance': 0.0,
+                    'total_balance': 0.0,
+                    'locked_balance': 0.0,
+                    'cross_order_margin': 0.0,
+                    'cross_user_margin': 0.0,
+                    'used_margin': 0.0
+                }
+
+            # Parse CoinDCX wallet structure
+            total = float(balance.get('balance', 0))
+            locked = float(balance.get('locked_balance', 0))
+            cross_order_margin = float(balance.get('cross_order_margin', 0))
+            cross_user_margin = float(balance.get('cross_user_margin', 0))
+
+            available = total - locked
+
+            # Round to 2 decimal places for display
             summary = {
-                'available_balance': available,
-                'total_balance': total,
-                'used_margin': total - available if total > available else 0.0,
-                'margin_details': margin_details
+                'available_balance': round(available, 2),
+                'total_balance': round(total, 2),
+                'locked_balance': round(locked, 2),
+                'cross_order_margin': round(cross_order_margin, 2),
+                'cross_user_margin': round(cross_user_margin, 2),
+                'used_margin': round(locked + cross_user_margin, 2)
             }
 
             logger.info(
-                f"Balance summary - Available: {available}, "
-                f"Total: {total}, Used: {summary['used_margin']}"
+                f"Balance summary - Total: {total} USDT, Available: {available} USDT, "
+                f"Locked: {locked} USDT, Margin: {cross_user_margin} USDT"
             )
 
             return summary
@@ -177,8 +233,10 @@ class WalletManager:
             return {
                 'available_balance': 0.0,
                 'total_balance': 0.0,
-                'used_margin': 0.0,
-                'margin_details': None
+                'locked_balance': 0.0,
+                'cross_order_margin': 0.0,
+                'cross_user_margin': 0.0,
+                'used_margin': 0.0
             }
 
     def calculate_max_position_value(self, max_percent: float, leverage: int) -> float:

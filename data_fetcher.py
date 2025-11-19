@@ -174,10 +174,31 @@ class DataFetcher:
         return multi_tf_data
 
     def get_latest_price(self, pair: str) -> float:
-        """Get the latest price for a trading pair"""
+        """
+        Get the latest price for a trading pair
+
+        Args:
+            pair: Trading pair in standard format (e.g., 'BTCUSDT')
+
+        Returns:
+            Current market price as float
+        """
         try:
-            ticker = self.client.get_ticker(pair)
-            return float(ticker.get('last_price', 0))
+            # Convert to CoinDCX futures format
+            coindcx_pair = self.convert_to_coindcx_symbol(pair)
+
+            # Get real-time prices for all futures instruments
+            prices_data = self.client.get_current_prices_realtime()
+
+            # Extract the price for our specific pair
+            if 'prices' in prices_data and coindcx_pair in prices_data['prices']:
+                instrument_data = prices_data['prices'][coindcx_pair]
+                # 'ls' is the last price field
+                return float(instrument_data.get('ls', 0))
+            else:
+                logger.warning(f"No price data found for {coindcx_pair}")
+                return 0.0
+
         except Exception as e:
             logger.error(f"Error getting latest price for {pair}: {e}")
             return 0.0

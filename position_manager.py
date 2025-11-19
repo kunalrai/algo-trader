@@ -24,12 +24,22 @@ class PositionManager:
         Get all active positions from exchange
 
         Returns:
-            List of active positions
+            List of active positions (only positions with active_pos > 0)
         """
         try:
             positions = self.client.get_positions()
-            logger.info(f"Retrieved {len(positions)} active positions")
-            return positions
+
+            # Filter for only truly active positions (active_pos > 0)
+            active_positions = [
+                pos for pos in positions
+                if abs(float(pos.get('active_pos', 0))) > 0
+            ]
+
+            logger.info(
+                f"Retrieved {len(positions)} total positions, "
+                f"{len(active_positions)} actually active (active_pos > 0)"
+            )
+            return active_positions
         except Exception as e:
             logger.error(f"Error getting positions: {e}")
             return []
@@ -39,15 +49,22 @@ class PositionManager:
         Get active position for a specific pair
 
         Args:
-            pair: Trading pair
+            pair: Trading pair (in CoinDCX format: 'B-BTC_USDT')
 
         Returns:
             Position dict or None
         """
         try:
             positions = self.client.get_positions(pair=pair)
-            if positions and len(positions) > 0:
-                return positions[0]
+
+            # Filter for active positions only
+            active_positions = [
+                pos for pos in positions
+                if abs(float(pos.get('active_pos', 0))) > 0
+            ]
+
+            if active_positions and len(active_positions) > 0:
+                return active_positions[0]
             return None
         except Exception as e:
             logger.error(f"Error getting position for {pair}: {e}")

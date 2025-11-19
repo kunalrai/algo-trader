@@ -249,3 +249,117 @@ class TechnicalIndicators:
             logger.error(f"Error getting RSI signal: {e}")
 
         return 'neutral'
+
+    @staticmethod
+    def calculate_support_resistance(df: pd.DataFrame, lookback: int = 20, num_levels: int = 3) -> Dict:
+        """
+        Calculate support and resistance levels using pivot points and local extrema
+
+        Args:
+            df: DataFrame with OHLCV data
+            lookback: Number of candles to look back for finding levels
+            num_levels: Number of S/R levels to return
+
+        Returns:
+            Dict with support and resistance levels
+        """
+        if df.empty or len(df) < lookback:
+            return {
+                'support_levels': [],
+                'resistance_levels': [],
+                'current_price': 0
+            }
+
+        try:
+            recent_df = df.tail(lookback).copy()
+            current_price = float(df.iloc[-1]['close'])
+
+            # Find local maxima (resistance) and minima (support)
+            highs = recent_df['high'].values
+            lows = recent_df['low'].values
+
+            # Detect pivot points
+            resistance_points = []
+            support_points = []
+
+            for i in range(2, len(recent_df) - 2):
+                # Resistance: high[i] is higher than surrounding highs
+                if (highs[i] > highs[i-1] and highs[i] > highs[i-2] and
+                    highs[i] > highs[i+1] and highs[i] > highs[i+2]):
+                    resistance_points.append(highs[i])
+
+                # Support: low[i] is lower than surrounding lows
+                if (lows[i] < lows[i-1] and lows[i] < lows[i-2] and
+                    lows[i] < lows[i+1] and lows[i] < lows[i+2]):
+                    support_points.append(lows[i])
+
+            # Cluster similar levels (within 0.5% of each other)
+            def cluster_levels(levels, tolerance=0.005):
+                if not levels:
+                    return []
+
+                levels = sorted(levels)
+                clusters = []
+                current_cluster = [levels[0]]
+
+                for level in levels[1:]:
+                    if abs(level - current_cluster[-1]) / current_cluster[-1] < tolerance:
+                        current_cluster.append(level)
+                    else:
+                        clusters.append(sum(current_cluster) / len(current_cluster))
+                        current_cluster = [level]
+
+                if current_cluster:
+                    clusters.append(sum(current_cluster) / len(current_cluster))
+
+                return clusters
+
+            # Cluster and filter levels
+            clustered_resistance = cluster_levels(resistance_points)
+            clustered_support = cluster_levels(support_points)
+
+            # Filter to get levels above/below current price
+            resistance_levels = sorted([r for r in clustered_resistance if r > current_price])[:num_levels]
+            support_levels = sorted([s for s in clustered_support if s < current_price], reverse=True)[:num_levels]
+
+            # If not enough levels found, add levels based on percentage
+            while len(resistance_levels) < num_levels:
+                next_resistance = current_price * (1 + 0.02 * (len(resistance_levels) + 1))
+                resistance_levels.append(next_resistance)
+
+            while len(support_levels) < num_levels:
+                next_support = current_price * (1 - 0.02 * (len(support_levels) + 1))
+                support_levels.append(next_support)
+
+            return {
+                'support_levels': [round(s, 2) for s in support_levels[:num_levels]],
+                'resistance_levels': [round(r, 2) for r in resistance_levels[:num_levels]],
+                'current_price': round(current_price, 2)
+            }
+
+        except Exception as e:
+            logger.error(f"Error calculating support/resistance: {e}")
+            return {
+                'support_levels': [],
+                'resistance_levels': [],
+                'current_price': 0
+            }
+
+    @staticmethod
+    def get_support_resistance_levels(df: pd.DataFrame, timeframe_type: str = 'short') -> Dict:
+        """
+        Get support and resistance levels based on timeframe
+
+        Args:
+            df: DataFrame with OHLCV data
+            timeframe_type: 'short' for short-term (5m-1h) or 'long' for long-term (4h+)
+
+        Returns:
+            Dict with support/resistance levels
+        """
+        if timeframe_type == 'short':
+            # Short-term: look back 20 candles, find 2 levels
+            return TechnicalIndicators.calculate_support_resistance(df, lookback=20, num_levels=2)
+        else:
+            # Long-term: look back 50 candles, find 3 levels
+            return TechnicalIndicators.calculate_support_resistance(df, lookback=50, num_levels=3)
