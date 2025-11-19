@@ -39,7 +39,7 @@ trading_bot.log*
 .env
 
 # API Keys (DO NOT COMMIT)
-config.py
+# config.py - Now safe to commit as secrets are in .env
 
 # Data files
 *.csv
