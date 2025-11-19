@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Cryptocurrency Futures Trading Bot - Main Entry Point
 Multi-timeframe algorithmic trading bot for CoinDCX Futures
@@ -118,9 +119,9 @@ def display_welcome():
     Timeframes: 5m (short-term), 1h (medium-term), 4h (long-term)
     Indicators: EMA (9,15,20,50,200), MACD, RSI
 
-       WARNING: This bot trades real money in futures markets.
-       Ensure you understand the risks and have tested thoroughly.
-       Start with small amounts and monitor carefully.
+    ï¿½  WARNING: This bot trades real money in futures markets.
+    ï¿½  Ensure you understand the risks and have tested thoroughly.
+    ï¿½  Start with small amounts and monitor carefully.
 
     """
     print(banner)
