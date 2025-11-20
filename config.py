@@ -19,7 +19,8 @@ TRADING_PAIRS = {
     "ETH": "ETHUSDT",
     "XRP": "XRPUSDT",
     "BNB": "BNBUSDT",
-    "SOL": "SOLUSDT"
+    "SOL": "SOLUSDT",
+    "ZEC": "ZECUSDT"
 }
 
 # Timeframes
@@ -62,7 +63,8 @@ TRADING_PARAMS = {
     "max_open_positions": 3,           # Maximum concurrent positions
     "enable_short": True,              # Enable short positions
     "enable_long": True,               # Enable long positions
-    "dry_run": True                    # Dry-run mode: analyze only, no actual trading
+    "dry_run": True,                   # Dry-run mode: analyze only, no actual trading
+    "simulated_balance": 1000.0        # Starting balance for dry-run mode (USDT)
 }
 
 # Logging

@@ -16,6 +16,25 @@ async function fetchStatus() {
         document.getElementById('total-balance').textContent = data.wallet.total_balance.toFixed(2);
         document.getElementById('available-balance').textContent = data.wallet.available_balance.toFixed(2);
 
+        // Show P&L in balance card if in dry-run mode
+        if (data.wallet.total_pnl !== undefined) {
+            const pnl = data.wallet.total_pnl;
+            const pnlPercent = data.wallet.pnl_percent;
+            const pnlText = `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnl >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%)`;
+            const pnlClass = pnl >= 0 ? 'text-xs text-green-400 mt-1' : 'text-xs text-red-400 mt-1';
+
+            // Add P&L display if not exists
+            let pnlDisplay = document.getElementById('balance-pnl-display');
+            if (!pnlDisplay) {
+                const balanceCard = document.getElementById('available-balance').parentElement;
+                pnlDisplay = document.createElement('div');
+                pnlDisplay.id = 'balance-pnl-display';
+                balanceCard.appendChild(pnlDisplay);
+            }
+            pnlDisplay.className = pnlClass;
+            pnlDisplay.textContent = `P&L: ${pnlText}`;
+        }
+
         document.getElementById('total-positions').textContent = data.positions.total;
         document.getElementById('max-positions').textContent = data.config.max_positions;
         document.getElementById('long-positions').textContent = data.positions.long;
@@ -115,10 +134,16 @@ async function fetchPrices() {
 // Fetch trading signals
 async function fetchSignals() {
     try {
+        const container = document.getElementById('signals-container');
+
+        // If signals container doesn't exist in dashboard, skip this function
+        if (!container) {
+            return;
+        }
+
         const response = await fetch('/api/signals');
         const signals = await response.json();
 
-        const container = document.getElementById('signals-container');
         container.innerHTML = signals.map(signal => {
             // Determine signal styling
             let actionClass = 'text-gray-400';
@@ -264,10 +289,16 @@ async function fetchSignals() {
 // Fetch liquidity data
 async function fetchLiquidity() {
     try {
+        const container = document.getElementById('liquidity-container');
+
+        // If liquidity container doesn't exist in dashboard, skip this function
+        if (!container) {
+            return;
+        }
+
         const response = await fetch('/api/liquidity');
         const liquidity = await response.json();
 
-        const container = document.getElementById('liquidity-container');
         container.innerHTML = liquidity.map(liq => {
             // Determine spread status color
             const spreadColor = liq.spread_status === 'tight' ? 'text-green-400' :
@@ -435,16 +466,52 @@ async function closeAllPositions() {
     }
 }
 
+// Reset simulated wallet
+async function resetWallet() {
+    // Double confirmation for safety
+    if (!confirm('⚠️ WARNING: This will reset your simulated wallet!\n\nAll positions will be closed and your balance will be reset to $1000.\nAll trade history and statistics will be permanently deleted.\n\nAre you absolutely sure?')) {
+        return;
+    }
+
+    // Second confirmation
+    if (!confirm('This is your final confirmation.\n\nReset wallet and delete all data?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/simulated/reset', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert('✅ ' + result.message + '\n\nDashboard will refresh now.');
+            // Refresh the entire dashboard to show reset state
+            refreshData();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error resetting wallet:', error);
+        alert('Failed to reset wallet. Please try again.');
+    }
+}
+
 // Chart variables - Chart.js
 const priceCharts = {};
-const tradingPairs = ['BTCUSDT', 'ETHUSDT', 'XRPUSDT', 'BNBUSDT', 'SOLUSDT'];
-const pairNames = {
-    'BTCUSDT': 'btc',
-    'ETHUSDT': 'eth',
-    'XRPUSDT': 'xrp',
-    'BNBUSDT': 'bnb',
-    'SOLUSDT': 'sol'
-};
+// Get trading pairs dynamically from config passed from Flask template
+const tradingPairs = Object.values(window.TRADING_PAIRS_CONFIG || {});
+const pairNames = {};
+// Build pairNames mapping dynamically
+if (window.TRADING_PAIRS_CONFIG) {
+    Object.entries(window.TRADING_PAIRS_CONFIG).forEach(([name, symbol]) => {
+        pairNames[symbol] = name.toLowerCase();
+    });
+}
 let currentChartTimeframe = '5';
 
 // Create Chart.js chart for a trading pair
@@ -553,6 +620,11 @@ function initPriceChart() {
 
 // Fetch data for all charts
 async function fetchAllChartData() {
+    // Skip if tradingPairs is not defined or empty
+    if (!tradingPairs || tradingPairs.length === 0) {
+        return;
+    }
+
     const promises = tradingPairs.map(pair => fetchChartDataForPair(pair));
     await Promise.all(promises);
 }
@@ -651,26 +723,185 @@ async function fetchChartDataForPair(pair) {
     }
 }
 
+// Fetch bot runtime status
+async function fetchBotStatus() {
+    try {
+        const response = await fetch('/api/bot/status');
+        const status = await response.json();
+
+        // Update bot running indicator
+        const isRunning = status.bot_running;
+        const statusDot = document.getElementById('bot-status-dot');
+        const statusText = document.getElementById('bot-running-text');
+
+        if (isRunning) {
+            statusDot.className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
+            statusText.textContent = 'Running';
+            statusText.className = 'text-xs font-semibold text-green-400';
+        } else {
+            statusDot.className = 'w-2 h-2 rounded-full bg-gray-500';
+            statusText.textContent = 'Stopped';
+            statusText.className = 'text-xs font-semibold text-gray-400';
+        }
+
+        // Update uptime
+        document.getElementById('bot-uptime').textContent = status.uptime_formatted || '0s';
+        document.getElementById('total-cycles').textContent = status.total_cycles || 0;
+
+        // Update last scan
+        document.getElementById('last-scan-time').textContent = status.last_cycle_formatted || 'Never';
+        document.getElementById('seconds-since-scan').textContent = status.seconds_since_last_cycle || '--';
+
+        // Update next scan countdown
+        document.getElementById('next-scan-countdown').textContent = status.next_scan_countdown || '--';
+        document.getElementById('scan-interval').textContent = status.scan_interval || 60;
+
+        // Update pairs monitored
+        const pairs = status.pairs_monitored || [];
+        document.getElementById('pairs-count').textContent = pairs.length;
+        document.getElementById('pairs-list').textContent = pairs.join(', ') || '--';
+
+        // Update current action
+        document.getElementById('current-action').textContent = status.current_action || 'Stopped';
+        document.getElementById('action-details').textContent = status.action_details || 'Bot not running';
+        document.getElementById('last-decision-time').textContent = status.last_decision_formatted || 'N/A';
+
+    } catch (error) {
+        console.error('Error fetching bot status:', error);
+    }
+}
+
 // Refresh all data
 function refreshData() {
+    console.log('[' + new Date().toLocaleTimeString() + '] Refreshing dashboard data...');
     fetchStatus();
+    fetchBotStatus();       // NEW: Fetch bot runtime status
     fetchSignals();
     fetchLiquidity();
     fetchPositions();
     fetchPrices();
     fetchAllChartData();
+    fetchPnLStats();
+    fetchRecentTrades();
 }
+
+// Fetch P&L Statistics (Dry-Run Mode)
+async function fetchPnLStats() {
+    try {
+        const response = await fetch('/api/simulated/stats');
+
+        if (response.status === 400) {
+            // Not in dry-run mode, hide the section
+            document.getElementById('pnl-stats-section').style.display = 'none';
+            return;
+        }
+
+        const stats = await response.json();
+
+        // Show the P&L section
+        document.getElementById('pnl-stats-section').style.display = 'block';
+
+        // Update P&L total
+        const pnlElement = document.getElementById('pnl-total');
+        const pnl = stats.total_pnl || 0;
+        pnlElement.textContent = `$${pnl.toFixed(2)}`;
+        pnlElement.className = pnl >= 0 ? 'text-2xl font-bold text-green-400' : 'text-2xl font-bold text-red-400';
+
+        // Update P&L percentage
+        const pnlPercentElement = document.getElementById('pnl-percent');
+        const pnlPercent = stats.pnl_percent || 0;
+        pnlPercentElement.textContent = `${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%`;
+        pnlPercentElement.className = pnlPercent >= 0 ? 'text-sm mt-1 text-green-400' : 'text-sm mt-1 text-red-400';
+
+        // Update statistics
+        document.getElementById('stat-total-trades').textContent = stats.total_trades || 0;
+        document.getElementById('stat-winning').textContent = stats.winning_trades || 0;
+        document.getElementById('stat-losing').textContent = stats.losing_trades || 0;
+        document.getElementById('stat-win-rate').textContent = `${(stats.win_rate || 0).toFixed(1)}%`;
+        document.getElementById('stat-avg-win').textContent = `$${(stats.avg_win || 0).toFixed(2)}`;
+        document.getElementById('stat-avg-loss').textContent = `$${(stats.avg_loss || 0).toFixed(2)}`;
+
+        // Calculate and display R:R ratio
+        const rrRatio = stats.avg_loss !== 0 ? Math.abs(stats.avg_win / stats.avg_loss) : 0;
+        document.getElementById('stat-rr-ratio').textContent = `${rrRatio.toFixed(2)}:1`;
+
+        document.getElementById('stat-largest-win').textContent = `$${(stats.largest_win || 0).toFixed(2)}`;
+        document.getElementById('stat-largest-loss').textContent = `$${(stats.largest_loss || 0).toFixed(2)}`;
+
+    } catch (error) {
+        console.error('Error fetching P&L stats:', error);
+        document.getElementById('pnl-stats-section').style.display = 'none';
+    }
+}
+
+// Fetch Recent Trades (Dry-Run Mode)
+async function fetchRecentTrades() {
+    try {
+        const response = await fetch('/api/simulated/trades?limit=10');
+
+        if (response.status === 400) {
+            return; // Not in dry-run mode
+        }
+
+        const trades = await response.json();
+        const tbody = document.getElementById('recent-trades-table');
+
+        if (!trades || trades.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="px-4 py-8 text-center text-gray-400">
+                        No trades yet. Start trading to see results here!
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        // Filter only closed trades
+        const closedTrades = trades.filter(t => t.type === 'close');
+
+        tbody.innerHTML = closedTrades.map(trade => {
+            const pnlClass = trade.pnl >= 0 ? 'text-green-400' : 'text-red-400';
+            const pnlSymbol = trade.pnl >= 0 ? '🟢' : '🔴';
+            const sideClass = trade.side === 'long' ? 'text-green-400' : 'text-red-400';
+            const time = new Date(trade.timestamp).toLocaleString();
+
+            return `
+                <tr class="hover:bg-gray-700">
+                    <td class="px-4 py-3 text-sm text-white">${trade.pair}</td>
+                    <td class="px-4 py-3 text-sm ${sideClass} font-semibold">${trade.side.toUpperCase()}</td>
+                    <td class="px-4 py-3 text-sm text-white">$${trade.entry_price.toFixed(2)}</td>
+                    <td class="px-4 py-3 text-sm text-white">$${trade.close_price.toFixed(2)}</td>
+                    <td class="px-4 py-3 text-sm ${pnlClass} font-bold">
+                        ${pnlSymbol} $${trade.pnl.toFixed(2)} (${trade.pnl_percent.toFixed(2)}%)
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-300">${trade.reason}</td>
+                    <td class="px-4 py-3 text-sm text-gray-400">${time}</td>
+                </tr>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error('Error fetching recent trades:', error);
+    }
+}
+
+// Initial data load on page ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Dashboard loaded - fetching initial data...');
+    refreshData();
+});
 
 // Auto-refresh every 5 seconds
 setInterval(refreshData, 5000);
 
-// Wait for Chart.js library to load before initializing
+// Wait for Chart.js library to load before initializing charts
 window.addEventListener('load', function () {
     // Give a small delay to ensure script is fully loaded
     setTimeout(function () {
         if (typeof Chart !== 'undefined') {
+            console.log('Chart.js loaded - initializing charts...');
             initPriceChart();
-            refreshData();
         } else {
             console.error('Chart.js failed to load. Please check your internet connection.');
         }

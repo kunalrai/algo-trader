@@ -15,7 +15,10 @@ from wallet_manager import WalletManager
 from signal_generator import SignalGenerator
 from indicators import TechnicalIndicators
 from market_depth import MarketDepthAnalyzer
+from simulated_wallet import SimulatedWallet
+from bot_status import get_bot_status_tracker
 import json
+import os
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -45,45 +48,84 @@ signal_generator = SignalGenerator(
 )
 market_depth_analyzer = MarketDepthAnalyzer(client)
 
+# Initialize simulated wallet if in dry-run mode
+simulated_wallet = None
+if config.TRADING_PARAMS.get('dry_run', False):
+    simulated_wallet = SimulatedWallet(
+        initial_balance=config.TRADING_PARAMS.get('simulated_balance', 1000.0)
+    )
+    logger.info(f"Dashboard: Loaded simulated wallet with balance ${simulated_wallet.get_balance():.2f}")
+
 
 @app.route('/')
 def index():
     """Render main dashboard"""
-    return render_template('dashboard.html')
+    # Pass trading pairs to template for dynamic chart generation
+    return render_template('dashboard.html', trading_pairs=config.TRADING_PAIRS)
 
 
 @app.route('/api/status')
 def get_status():
     """Get bot status and overview"""
     try:
-        # Get wallet balance
-        wallet_info = wallet_manager.get_balance_summary()
+        # Use simulated wallet if in dry-run mode
+        if config.TRADING_PARAMS.get('dry_run') and simulated_wallet:
+            wallet_info = simulated_wallet.get_balance_summary()
+            positions = simulated_wallet.get_all_positions()
 
-        # Get positions
-        positions = position_manager.get_all_positions()
-        position_summary = position_manager.get_position_summary()
-
-        status = {
-            'timestamp': datetime.now().isoformat(),
-            'trading_mode': 'DRY RUN' if config.TRADING_PARAMS['dry_run'] else 'LIVE',
-            'wallet': {
-                'total_balance': wallet_info.get('total_balance', 0),
-                'available_balance': wallet_info.get('available_balance', 0),
-                'locked_balance': wallet_info.get('used_margin', 0),
-                'currency': 'USDT'
-            },
-            'positions': {
-                'total': position_summary['total_positions'],
-                'long': position_summary['long_positions'],
-                'short': position_summary['short_positions']
-            },
-            'config': {
-                'max_positions': config.TRADING_PARAMS['max_open_positions'],
-                'leverage': config.RISK_MANAGEMENT['leverage'],
-                'stop_loss': f"{config.RISK_MANAGEMENT['stop_loss_percent']}%",
-                'take_profit': f"{config.RISK_MANAGEMENT['take_profit_percent']}%"
+            status = {
+                'timestamp': datetime.now().isoformat(),
+                'trading_mode': 'DRY RUN',
+                'wallet': {
+                    'total_balance': wallet_info['total_balance'],
+                    'available_balance': wallet_info['available_balance'],
+                    'locked_balance': wallet_info['used_margin'],
+                    'currency': 'USDT',
+                    'initial_balance': wallet_info['initial_balance'],
+                    'total_pnl': wallet_info['total_pnl'],
+                    'pnl_percent': wallet_info['pnl_percent']
+                },
+                'positions': {
+                    'total': len(positions),
+                    'long': sum(1 for p in positions if p['side'] == 'long'),
+                    'short': sum(1 for p in positions if p['side'] == 'short')
+                },
+                'config': {
+                    'max_positions': config.TRADING_PARAMS['max_open_positions'],
+                    'leverage': config.RISK_MANAGEMENT['leverage'],
+                    'stop_loss': f"{config.RISK_MANAGEMENT['stop_loss_percent']}%",
+                    'take_profit': f"{config.RISK_MANAGEMENT['take_profit_percent']}%"
+                }
             }
-        }
+        else:
+            # Get wallet balance from real exchange
+            wallet_info = wallet_manager.get_balance_summary()
+
+            # Get positions
+            positions = position_manager.get_all_positions()
+            position_summary = position_manager.get_position_summary()
+
+            status = {
+                'timestamp': datetime.now().isoformat(),
+                'trading_mode': 'LIVE',
+                'wallet': {
+                    'total_balance': wallet_info.get('total_balance', 0),
+                    'available_balance': wallet_info.get('available_balance', 0),
+                    'locked_balance': wallet_info.get('used_margin', 0),
+                    'currency': 'USDT'
+                },
+                'positions': {
+                    'total': position_summary['total_positions'],
+                    'long': position_summary['long_positions'],
+                    'short': position_summary['short_positions']
+                },
+                'config': {
+                    'max_positions': config.TRADING_PARAMS['max_open_positions'],
+                    'leverage': config.RISK_MANAGEMENT['leverage'],
+                    'stop_loss': f"{config.RISK_MANAGEMENT['stop_loss_percent']}%",
+                    'take_profit': f"{config.RISK_MANAGEMENT['take_profit_percent']}%"
+                }
+            }
 
         return jsonify(status)
     except Exception as e:
@@ -95,55 +137,90 @@ def get_status():
 def get_positions():
     """Get all active positions with current P&L"""
     try:
-        positions = position_manager.get_all_positions()
+        # Use simulated wallet if in dry-run mode
+        if config.TRADING_PARAMS.get('dry_run') and simulated_wallet:
+            positions = simulated_wallet.get_all_positions()
 
-        positions_data = []
-        for pos in positions:
-            pair = pos.get('pair', '')
+            positions_data = []
+            for pos in positions:
+                # Get current price
+                current_price = data_fetcher.get_latest_price(pos['pair'])
 
-            # Get current price
-            # Convert B-BTC_USDT to BTCUSDT format
-            if pair.startswith('B-') and '_USDT' in pair:
-                symbol = pair.replace('B-', '').replace('_USDT', 'USDT')
-                current_price = data_fetcher.get_latest_price(symbol)
-            else:
-                current_price = 0
+                # Update position price in simulated wallet
+                if current_price > 0:
+                    simulated_wallet.update_position_price(pos['position_id'], current_price)
+                    # Get updated position
+                    pos = simulated_wallet.get_position(pos['position_id'])
 
-            # Determine position side (long/short) based on active_pos sign
-            active_pos = float(pos.get('active_pos', 0))
-            side = 'long' if active_pos > 0 else 'short'
-            size = abs(active_pos)
+                positions_data.append({
+                    'id': pos['position_id'],
+                    'pair': pos['pair'],
+                    'side': pos['side'],
+                    'size': pos['size'],
+                    'entry_price': pos['entry_price'],
+                    'current_price': pos.get('current_price', current_price),
+                    'leverage': pos['leverage'],
+                    'pnl': round(pos['pnl'], 2),
+                    'pnl_percent': round(pos['pnl_percent'], 2),
+                    'liquidation_price': 0,  # Not calculated in simulated mode
+                    'margin': pos['margin'],
+                    'take_profit': pos['take_profit'],
+                    'stop_loss': pos['stop_loss'],
+                    'updated_at': pos.get('opened_at', '')
+                })
 
-            avg_price = float(pos.get('avg_price', 0))
+            return jsonify(positions_data)
+        else:
+            # Get real positions from exchange
+            positions = position_manager.get_all_positions()
 
-            # Calculate P&L
-            if avg_price > 0 and size > 0:
-                if side == 'long':
-                    pnl = (current_price - avg_price) * size
-                    pnl_percent = ((current_price - avg_price) / avg_price) * 100
+            positions_data = []
+            for pos in positions:
+                pair = pos.get('pair', '')
+
+                # Get current price
+                # Convert B-BTC_USDT to BTCUSDT format
+                if pair.startswith('B-') and '_USDT' in pair:
+                    symbol = pair.replace('B-', '').replace('_USDT', 'USDT')
+                    current_price = data_fetcher.get_latest_price(symbol)
                 else:
-                    pnl = (avg_price - current_price) * size
-                    pnl_percent = ((avg_price - current_price) / avg_price) * 100
-            else:
-                pnl = 0
-                pnl_percent = 0
+                    current_price = 0
 
-            positions_data.append({
-                'id': pos.get('id'),
-                'pair': pair,
-                'side': side,
-                'size': size,
-                'entry_price': avg_price,
-                'current_price': current_price,
-                'leverage': pos.get('leverage', 0),
-                'pnl': round(pnl, 2),
-                'pnl_percent': round(pnl_percent, 2),
-                'liquidation_price': pos.get('liquidation_price', 0),
-                'margin': pos.get('locked_margin', 0),
-                'updated_at': pos.get('updated_at')
-            })
+                # Determine position side (long/short) based on active_pos sign
+                active_pos = float(pos.get('active_pos', 0))
+                side = 'long' if active_pos > 0 else 'short'
+                size = abs(active_pos)
 
-        return jsonify(positions_data)
+                avg_price = float(pos.get('avg_price', 0))
+
+                # Calculate P&L
+                if avg_price > 0 and size > 0:
+                    if side == 'long':
+                        pnl = (current_price - avg_price) * size
+                        pnl_percent = ((current_price - avg_price) / avg_price) * 100
+                    else:
+                        pnl = (avg_price - current_price) * size
+                        pnl_percent = ((avg_price - current_price) / avg_price) * 100
+                else:
+                    pnl = 0
+                    pnl_percent = 0
+
+                positions_data.append({
+                    'id': pos.get('id'),
+                    'pair': pair,
+                    'side': side,
+                    'size': size,
+                    'entry_price': avg_price,
+                    'current_price': current_price,
+                    'leverage': pos.get('leverage', 0),
+                    'pnl': round(pnl, 2),
+                    'pnl_percent': round(pnl_percent, 2),
+                    'liquidation_price': pos.get('liquidation_price', 0),
+                    'margin': pos.get('locked_margin', 0),
+                    'updated_at': pos.get('updated_at')
+                })
+
+            return jsonify(positions_data)
     except Exception as e:
         logger.error(f"Error getting positions: {e}")
         return jsonify({'error': str(e)}), 500
@@ -209,15 +286,38 @@ def close_position():
             return jsonify({'error': 'position_id required'}), 400
 
         # Check if dry run mode
-        if config.TRADING_PARAMS['dry_run']:
-            logger.info(f"DRY RUN: Would close position {position_id}")
-            return jsonify({
-                'success': True,
-                'message': 'DRY RUN: Position close simulated',
-                'position_id': position_id
-            })
+        if config.TRADING_PARAMS['dry_run'] and simulated_wallet:
+            # Get position from simulated wallet
+            position = simulated_wallet.get_position(position_id)
 
-        # Actually close position
+            if not position:
+                return jsonify({'error': 'Position not found'}), 404
+
+            # Get current price to close at
+            current_price = data_fetcher.get_latest_price(position['pair'])
+
+            if current_price == 0:
+                return jsonify({'error': 'Could not get current price'}), 500
+
+            # Close position in simulated wallet
+            result = simulated_wallet.close_position(
+                position_id,
+                current_price,
+                "Manual close via dashboard"
+            )
+
+            if result:
+                logger.info(f"DRY RUN: Closed position {position_id} at ${current_price:.2f}")
+                return jsonify({
+                    'success': True,
+                    'message': f"Position closed (simulated) - P&L: ${result['final_pnl']:.2f}",
+                    'position_id': position_id,
+                    'pnl': result['final_pnl']
+                })
+            else:
+                return jsonify({'error': 'Failed to close position'}), 500
+
+        # Actually close position (live mode)
         success = position_manager.close_position(position_id, reason="Manual close via dashboard")
 
         if success:
@@ -420,6 +520,110 @@ def get_liquidity(symbol):
         })
     except Exception as e:
         logger.error(f"Error getting liquidity for {symbol}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/simulated/stats')
+def get_simulated_stats():
+    """Get simulated wallet statistics (dry-run mode only)"""
+    try:
+        if not config.TRADING_PARAMS.get('dry_run') or not simulated_wallet:
+            return jsonify({'error': 'Not in dry-run mode'}), 400
+
+        stats = simulated_wallet.get_statistics()
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Error getting simulated stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/simulated/trades')
+def get_simulated_trades():
+    """Get simulated trade history (dry-run mode only)"""
+    try:
+        if not config.TRADING_PARAMS.get('dry_run') or not simulated_wallet:
+            return jsonify({'error': 'Not in dry-run mode'}), 400
+
+        limit = int(request.args.get('limit', 20))
+        trades = simulated_wallet.get_trade_history(limit=limit)
+
+        return jsonify(trades)
+    except Exception as e:
+        logger.error(f"Error getting simulated trades: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/simulated/reset', methods=['POST'])
+def reset_simulated_wallet():
+    """Reset simulated wallet to initial balance (dry-run mode only)"""
+    try:
+        if not config.TRADING_PARAMS.get('dry_run') or not simulated_wallet:
+            return jsonify({'error': 'Not in dry-run mode'}), 400
+
+        # Get initial balance from config or request
+        initial_balance = config.TRADING_PARAMS.get('simulated_balance', 1000.0)
+
+        # Reset the wallet
+        simulated_wallet.reset(initial_balance)
+
+        logger.info(f"Simulated wallet reset to ${initial_balance:.2f}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Wallet reset to ${initial_balance:.2f}',
+            'initial_balance': initial_balance
+        })
+    except Exception as e:
+        logger.error(f"Error resetting simulated wallet: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bot/status')
+def get_bot_status():
+    """Get bot runtime status and current activity"""
+    try:
+        status_tracker = get_bot_status_tracker()
+        status = status_tracker.get_status()
+        return jsonify(status)
+    except Exception as e:
+        logger.error(f"Error getting bot status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/wallet/history')
+def get_wallet_history():
+    """Get wallet balance history over time (for chart)"""
+    try:
+        if not config.TRADING_PARAMS.get('dry_run') or not simulated_wallet:
+            return jsonify({'error': 'Not in dry-run mode'}), 400
+
+        # Get trade history
+        trades = simulated_wallet.get_trade_history(limit=100)
+
+        # Calculate balance at each trade
+        initial_balance = config.TRADING_PARAMS.get('simulated_balance', 1000.0)
+        balance_history = []
+
+        # Add starting point
+        if trades:
+            balance_history.append({
+                'timestamp': trades[0]['opened_at'] if trades else 0,
+                'balance': initial_balance,
+                'pnl': 0
+            })
+
+        running_balance = initial_balance
+        for trade in trades:
+            running_balance += trade['pnl']
+            balance_history.append({
+                'timestamp': trade['closed_at'],
+                'balance': running_balance,
+                'pnl': trade['pnl']
+            })
+
+        return jsonify(balance_history)
+    except Exception as e:
+        logger.error(f"Error getting wallet history: {e}")
         return jsonify({'error': str(e)}), 500
 
 

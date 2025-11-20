@@ -5,7 +5,9 @@ Handles order execution, TP/SL calculation, and order management
 
 from typing import Dict, Optional
 import logging
+import uuid
 from coindcx_client import CoinDCXFuturesClient
+from simulated_wallet import SimulatedWallet
 
 logger = logging.getLogger(__name__)
 
@@ -13,14 +15,18 @@ logger = logging.getLogger(__name__)
 class OrderManager:
     """Manage order execution with TP/SL calculation"""
 
-    def __init__(self, client: CoinDCXFuturesClient, risk_config: Dict, dry_run: bool = False):
+    def __init__(self, client: CoinDCXFuturesClient, risk_config: Dict, dry_run: bool = False, simulated_balance: float = 1000.0):
         self.client = client
         self.risk_config = risk_config
         self.dry_run = dry_run
+        self.simulated_wallet = None
 
         if self.dry_run:
+            self.simulated_wallet = SimulatedWallet(initial_balance=simulated_balance)
+            balance = self.simulated_wallet.get_balance()
             logger.info("=" * 60)
             logger.info("DRY-RUN MODE ENABLED")
+            logger.info(f"Starting with simulated balance: ${balance:.2f} USDT")
             logger.info("No actual trades will be executed")
             logger.info("=" * 60)
 
@@ -95,7 +101,7 @@ class OrderManager:
             return {'take_profit': 0, 'stop_loss': 0}
 
     def execute_market_order(self, pair: str, side: str, size: float,
-                           balance: float) -> Optional[Dict]:
+                           balance: float, current_price: float = 0) -> Optional[Dict]:
         """
         Execute market order with calculated position size
 
@@ -121,16 +127,20 @@ class OrderManager:
             logger.info(f"{'[DRY-RUN] ' if self.dry_run else ''}Executing {side.upper()} market order for {pair}, size: {size}")
 
             if self.dry_run:
+                # Generate unique IDs
+                order_id = f"sim-order-{uuid.uuid4().hex[:8]}"
+                position_id = f"sim-pos-{uuid.uuid4().hex[:8]}"
+
                 # Simulate order response
                 logger.info(f"[DRY-RUN] Simulated order executed successfully")
                 return {
-                    'order_id': 'dry-run-order-id',
+                    'order_id': order_id,
                     'pair': pair,
                     'side': side,
                     'order_type': 'market_order',
                     'size': size,
-                    'average_price': 0,  # Will be filled with current price
-                    'position_id': 'dry-run-position-id',
+                    'average_price': current_price,  # Use actual current price
+                    'position_id': position_id,
                     'status': 'filled',
                     'dry_run': True
                 }
@@ -254,7 +264,7 @@ class OrderManager:
                 return None
 
             # Execute market order
-            order = self.execute_market_order(pair, side, position_size, balance)
+            order = self.execute_market_order(pair, side, position_size, balance, current_price)
 
             if not order:
                 logger.error(f"Failed to execute market order")
@@ -273,6 +283,27 @@ class OrderManager:
 
             # Get position ID from order
             position_id = order.get('position_id')
+
+            # Calculate margin required
+            margin = (position_size * entry_price) / leverage
+
+            # If dry-run, record in simulated wallet
+            if self.dry_run and self.simulated_wallet:
+                success = self.simulated_wallet.open_position(
+                    position_id=position_id,
+                    pair=pair,
+                    side=side,
+                    entry_price=entry_price,
+                    size=position_size,
+                    margin=margin,
+                    leverage=leverage,
+                    stop_loss=tp_sl['stop_loss'],
+                    take_profit=tp_sl['take_profit']
+                )
+
+                if not success:
+                    logger.error("Failed to open simulated position (insufficient balance)")
+                    return None
 
             if position_id:
                 # Place TP/SL orders
@@ -293,7 +324,8 @@ class OrderManager:
                     'tp_order': tp_sl_orders['tp_order'],
                     'sl_order': tp_sl_orders['sl_order'],
                     'side': side,
-                    'pair': pair
+                    'pair': pair,
+                    'margin': margin
                 }
             else:
                 logger.warning(f"No position ID in order response")
