@@ -28,6 +28,9 @@ class StrategyManager:
         self.register_strategy('rsi', RSIStrategy())
         self.register_strategy('combined', CombinedStrategy())
 
+        # Set default active strategy
+        self.set_active_strategy('combined')
+
     def register_strategy(self, strategy_id: str, strategy: BaseStrategy):
         """
         Register a new strategy
