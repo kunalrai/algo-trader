@@ -3,7 +3,8 @@ Flask Dashboard for Trading Bot
 Real-time monitoring and control interface
 """
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect, url_for
+from flask_login import login_required, current_user
 from datetime import datetime
 import logging
 from typing import Dict, List
@@ -19,12 +20,27 @@ from simulated_wallet import SimulatedWallet
 from bot_status import get_bot_status_tracker
 from activity_log import get_activity_log
 from strategies.strategy_manager import get_strategy_manager
+from models import db, init_db, User, UserProfile
+from auth import auth_bp, init_auth
 import json
 import os
 
 # Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
+
+# Database configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///algo_trader.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Google OAuth configuration (set these in .env)
+app.config['GOOGLE_CLIENT_ID'] = os.getenv('GOOGLE_CLIENT_ID', '')
+app.config['GOOGLE_CLIENT_SECRET'] = os.getenv('GOOGLE_CLIENT_SECRET', '')
+
+# Initialize database and authentication
+init_db(app)
+init_auth(app)
+app.register_blueprint(auth_bp)
 
 # Initialize logging
 logging.basicConfig(
@@ -59,56 +75,104 @@ if config.TRADING_PARAMS.get('dry_run', False):
     logger.info(f"Dashboard: Loaded simulated wallet with balance ${simulated_wallet.get_balance():.2f}")
 
 
+# ============================================================================
+# USER-SPECIFIC TRADING COMPONENTS
+# ============================================================================
+
+def get_user_trading_mode():
+    """Get the trading mode for the current user"""
+    if current_user.is_authenticated and current_user.profile:
+        return current_user.profile.trading_mode == 'paper'
+    return config.TRADING_PARAMS.get('dry_run', True)
+
+
+def get_user_client():
+    """Get CoinDCX client with user's API keys if in live mode"""
+    if current_user.is_authenticated and current_user.profile:
+        if current_user.profile.trading_mode == 'live' and current_user.profile.has_api_keys:
+            return CoinDCXFuturesClient(
+                api_key=current_user.profile.coindcx_api_key,
+                api_secret=current_user.profile.coindcx_api_secret,
+                base_url=config.BASE_URL
+            )
+    return client  # Default client
+
+
+def get_user_simulated_wallet():
+    """Get the simulated wallet for the current user"""
+    if current_user.is_authenticated and current_user.profile:
+        # For now, return the global simulated wallet
+        # In a full implementation, this would return user-specific wallet from DB
+        return simulated_wallet
+    return simulated_wallet
+
+
+# ============================================================================
+# PAGE ROUTES (Protected by login_required)
+# ============================================================================
+
 @app.route('/')
+@login_required
 def index():
     """Render main dashboard - Overview page"""
     return render_template('overview.html', trading_pairs=config.TRADING_PAIRS)
 
 
 @app.route('/strategies')
+@login_required
 def strategies():
     """Render strategies page"""
     return render_template('strategies.html', trading_pairs=config.TRADING_PAIRS)
 
 
 @app.route('/positions')
+@login_required
 def positions():
     """Render positions page"""
     return render_template('positions.html', trading_pairs=config.TRADING_PAIRS)
 
 
 @app.route('/performance')
+@login_required
 def performance():
     """Render performance page"""
     return render_template('performance.html', trading_pairs=config.TRADING_PAIRS)
 
 
 @app.route('/market')
+@login_required
 def market():
     """Render market analysis page"""
     return render_template('market.html', trading_pairs=config.TRADING_PAIRS)
 
 
 @app.route('/activity')
+@login_required
 def activity():
     """Render activity feed page"""
     return render_template('activity.html', trading_pairs=config.TRADING_PAIRS)
 
 
 @app.route('/dashboard')
+@login_required
 def dashboard_legacy():
     """Legacy dashboard route - redirects to overview"""
     return render_template('dashboard.html', trading_pairs=config.TRADING_PAIRS)
 
 
 @app.route('/api/status')
+@login_required
 def get_status():
     """Get bot status and overview"""
     try:
-        # Use simulated wallet if in dry-run mode
-        if config.TRADING_PARAMS.get('dry_run') and simulated_wallet:
-            wallet_info = simulated_wallet.get_balance_summary()
-            positions = simulated_wallet.get_all_positions()
+        # Use user's trading mode preference
+        is_paper_mode = get_user_trading_mode()
+        user_wallet = get_user_simulated_wallet()
+
+        # Use simulated wallet if in paper trading mode
+        if is_paper_mode and user_wallet:
+            wallet_info = user_wallet.get_balance_summary()
+            positions = user_wallet.get_all_positions()
 
             status = {
                 'timestamp': datetime.now().isoformat(),
@@ -171,6 +235,7 @@ def get_status():
 
 
 @app.route('/api/positions')
+@login_required
 def get_positions():
     """Get all active positions with current P&L"""
     try:
@@ -264,6 +329,7 @@ def get_positions():
 
 
 @app.route('/api/prices')
+@login_required
 def get_prices():
     """Get current prices for all trading pairs"""
     try:
@@ -284,6 +350,7 @@ def get_prices():
 
 
 @app.route('/api/market/<symbol>')
+@login_required
 def get_market_data(symbol):
     """Get detailed market data for a specific symbol"""
     try:
@@ -313,6 +380,7 @@ def get_market_data(symbol):
 
 
 @app.route('/api/close-position', methods=['POST'])
+@login_required
 def close_position():
     """Close a specific position"""
     try:
@@ -372,6 +440,7 @@ def close_position():
 
 
 @app.route('/api/config', methods=['GET', 'POST'])
+@login_required
 def handle_config():
     """Get or update bot configuration"""
     if request.method == 'GET':
@@ -395,6 +464,7 @@ def handle_config():
 
 
 @app.route('/api/trading/toggle', methods=['POST'])
+@login_required
 def toggle_trading():
     """Toggle trading mode (dry-run / live)"""
     try:
@@ -418,6 +488,7 @@ def toggle_trading():
 
 
 @app.route('/api/signals')
+@login_required
 def get_signals():
     """Get trading signals for all configured pairs"""
     try:
@@ -455,6 +526,7 @@ def get_signals():
 
 
 @app.route('/api/indicators/<symbol>')
+@login_required
 def get_indicators(symbol):
     """Get detailed technical indicators for a specific symbol"""
     try:
@@ -509,6 +581,7 @@ def get_indicators(symbol):
 
 
 @app.route('/api/liquidity')
+@login_required
 def get_liquidity_all():
     """Get liquidity metrics for all trading pairs"""
     try:
@@ -538,6 +611,7 @@ def get_liquidity_all():
 
 
 @app.route('/api/liquidity/<symbol>')
+@login_required
 def get_liquidity(symbol):
     """Get detailed liquidity metrics for a specific symbol"""
     try:
@@ -561,6 +635,7 @@ def get_liquidity(symbol):
 
 
 @app.route('/api/simulated/stats')
+@login_required
 def get_simulated_stats():
     """Get simulated wallet statistics (dry-run mode only)"""
     try:
@@ -575,6 +650,7 @@ def get_simulated_stats():
 
 
 @app.route('/api/simulated/trades')
+@login_required
 def get_simulated_trades():
     """Get simulated trade history (dry-run mode only)"""
     try:
@@ -591,6 +667,7 @@ def get_simulated_trades():
 
 
 @app.route('/api/simulated/reset', methods=['POST'])
+@login_required
 def reset_simulated_wallet():
     """Reset simulated wallet to initial balance (dry-run mode only)"""
     try:
@@ -616,6 +693,7 @@ def reset_simulated_wallet():
 
 
 @app.route('/api/bot/status')
+@login_required
 def get_bot_status():
     """Get bot runtime status and current activity"""
     try:
@@ -628,6 +706,7 @@ def get_bot_status():
 
 
 @app.route('/api/bot/activity')
+@login_required
 def get_bot_activity():
     """Get recent bot activity feed"""
     try:
@@ -643,6 +722,7 @@ def get_bot_activity():
 
 
 @app.route('/api/wallet/history')
+@login_required
 def get_wallet_history():
     """Get wallet balance history over time (for chart)"""
     try:
@@ -680,6 +760,7 @@ def get_wallet_history():
 
 
 @app.route('/api/chart/<symbol>')
+@login_required
 def get_chart_data(symbol):
     """Get chart data with S/R levels for a specific symbol"""
     try:
@@ -750,6 +831,7 @@ def get_chart_data(symbol):
 # ============================================================================
 
 @app.route('/api/strategies/list')
+@login_required
 def list_strategies():
     """Get list of all available strategies"""
     try:
@@ -766,6 +848,7 @@ def list_strategies():
 
 
 @app.route('/api/strategies/active')
+@login_required
 def get_active_strategy():
     """Get currently active strategy information"""
     try:
@@ -784,6 +867,7 @@ def get_active_strategy():
 
 
 @app.route('/api/strategies/set', methods=['POST'])
+@login_required
 def set_active_strategy():
     """Set the active trading strategy"""
     try:
@@ -824,6 +908,7 @@ def set_active_strategy():
 
 
 @app.route('/api/strategies/toggle', methods=['POST'])
+@login_required
 def toggle_strategy_system():
     """Toggle strategy system on/off"""
     try:
