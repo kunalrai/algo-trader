@@ -138,6 +138,98 @@ async function fetchPositions() {
     }
 }
 
+// Fetch status
+async function fetchStatus() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+
+        document.getElementById('total-positions').textContent = data.positions.total;
+        document.getElementById('max-positions').textContent = data.config.max_positions;
+        document.getElementById('long-positions').textContent = data.positions.long;
+        document.getElementById('short-positions').textContent = data.positions.short;
+    } catch (error) {
+        console.error('Error fetching status:', error);
+    }
+}
+
+// Close position
+async function closePosition(positionId) {
+    if (!confirm('Are you sure you want to close this position?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/close-position', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ position_id: positionId })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(result.message);
+            refreshPositions();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error closing position:', error);
+        alert('Failed to close position');
+    }
+}
+
+// Toggle trading mode
+async function toggleTradingMode() {
+    if (!confirm('Are you sure you want to toggle the trading mode?')) {
+        return;
+    }
+
+    try {
+        const statusResponse = await fetch('/api/status');
+        const statusData = await statusResponse.json();
+        const isDryRun = statusData.trading_mode === 'DRY RUN';
+
+        const response = await fetch('/api/trading/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: isDryRun ? 'live' : 'dry_run' })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(result.message);
+            refreshPositions();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error toggling mode:', error);
+        alert('Failed to toggle trading mode');
+    }
+}
+
+// Close all positions
+async function closeAllPositions() {
+    if (!confirm('Are you sure you want to close ALL positions? This cannot be undone!')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/positions');
+        const positions = await response.json();
+
+        for (const pos of positions) {
+            await closePosition(pos.id);
+        }
+    } catch (error) {
+        console.error('Error closing all positions:', error);
+        alert('Failed to close all positions');
+    }
+}
+
 // Initial load and refresh
 refreshPositions();
 setInterval(refreshPositions, 5000);

@@ -219,17 +219,114 @@
 
 {% block extra_scripts %}
 <script>
+// Fetch status data
+async function fetchStatus() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+
+        document.getElementById('total-balance').textContent = data.wallet.total_balance.toFixed(2);
+        document.getElementById('available-balance').textContent = data.wallet.available_balance.toFixed(2);
+
+        // Show P&L in balance card if in dry-run mode
+        if (data.wallet.total_pnl !== undefined) {
+            const pnl = data.wallet.total_pnl;
+            const pnlPercent = data.wallet.pnl_percent;
+            const pnlText = `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnl >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%)`;
+            const pnlClass = pnl >= 0 ? 'text-xs text-green-400 mt-1' : 'text-xs text-red-400 mt-1';
+
+            let pnlDisplay = document.getElementById('balance-pnl-display');
+            if (pnlDisplay) {
+                pnlDisplay.className = pnlClass;
+                pnlDisplay.textContent = `P&L: ${pnlText}`;
+            }
+        }
+
+        document.getElementById('total-positions').textContent = data.positions.total;
+        document.getElementById('max-positions').textContent = data.config.max_positions;
+        document.getElementById('long-positions').textContent = data.positions.long;
+        document.getElementById('short-positions').textContent = data.positions.short;
+
+        document.getElementById('leverage').textContent = data.config.leverage;
+        document.getElementById('stop-loss').textContent = data.config.stop_loss;
+        document.getElementById('take-profit').textContent = data.config.take_profit;
+
+        document.getElementById('last-update').textContent = new Date(data.timestamp).toLocaleTimeString();
+    } catch (error) {
+        console.error('Error fetching status:', error);
+    }
+}
+
+// Fetch bot runtime status
+async function fetchBotStatus() {
+    try {
+        const response = await fetch('/api/bot/status');
+        const status = await response.json();
+
+        const isRunning = status.bot_running;
+        const statusDot = document.getElementById('bot-status-dot');
+        const statusText = document.getElementById('bot-running-text');
+
+        if (statusDot && statusText) {
+            if (isRunning) {
+                statusDot.className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
+                statusText.textContent = 'Running';
+                statusText.className = 'text-xs font-semibold text-green-400';
+            } else {
+                statusDot.className = 'w-2 h-2 rounded-full bg-gray-500';
+                statusText.textContent = 'Stopped';
+                statusText.className = 'text-xs font-semibold text-gray-400';
+            }
+        }
+
+        const botUptime = document.getElementById('bot-uptime');
+        if (botUptime) botUptime.textContent = status.uptime_formatted || '0s';
+
+        const totalCycles = document.getElementById('total-cycles');
+        if (totalCycles) totalCycles.textContent = status.total_cycles || 0;
+
+        const lastScanTime = document.getElementById('last-scan-time');
+        if (lastScanTime) lastScanTime.textContent = status.last_cycle_formatted || 'Never';
+
+        const secondsSinceScan = document.getElementById('seconds-since-scan');
+        if (secondsSinceScan) secondsSinceScan.textContent = status.seconds_since_last_cycle || '--';
+
+        const nextScanCountdown = document.getElementById('next-scan-countdown');
+        if (nextScanCountdown) nextScanCountdown.textContent = status.next_scan_countdown || '--';
+
+        const scanInterval = document.getElementById('scan-interval');
+        if (scanInterval) scanInterval.textContent = status.scan_interval || 60;
+
+        const pairs = status.pairs_monitored || [];
+        const pairsCount = document.getElementById('pairs-count');
+        if (pairsCount) pairsCount.textContent = pairs.length;
+
+        const pairsList = document.getElementById('pairs-list');
+        if (pairsList) pairsList.textContent = pairs.join(', ') || '--';
+
+        const currentAction = document.getElementById('current-action');
+        if (currentAction) currentAction.textContent = status.current_action || 'Stopped';
+
+        const actionDetails = document.getElementById('action-details');
+        if (actionDetails) actionDetails.textContent = status.action_details || 'Bot not running';
+
+        const lastDecisionTime = document.getElementById('last-decision-time');
+        if (lastDecisionTime) lastDecisionTime.textContent = status.last_decision_formatted || 'N/A';
+
+    } catch (error) {
+        console.error('Error fetching bot status:', error);
+    }
+}
+
 // Fetch quick link data
 async function fetchQuickLinkData() {
     try {
-        // Fetch active strategy
         const strategyResponse = await fetch('/api/strategies/active');
         const strategyData = await strategyResponse.json();
         if (strategyData.success && strategyData.active_strategy) {
             document.getElementById('quick-active-strategy').textContent = strategyData.active_strategy.name;
         }
 
-        // Fetch P&L
         const pnlResponse = await fetch('/api/simulated/stats');
         if (pnlResponse.ok) {
             const pnlData = await pnlResponse.json();
@@ -244,7 +341,13 @@ async function fetchQuickLinkData() {
 }
 
 // Initial load
+fetchStatus();
+fetchBotStatus();
 fetchQuickLinkData();
+
+// Auto-refresh
+setInterval(fetchStatus, 5000);
+setInterval(fetchBotStatus, 5000);
 setInterval(fetchQuickLinkData, 5000);
 </script>
 {% endblock %}
