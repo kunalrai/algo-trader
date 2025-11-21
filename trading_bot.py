@@ -130,8 +130,12 @@ class TradingBot:
     def _display_startup_info(self):
         """Display startup information"""
         try:
-            # Get balance
-            balance_summary = self.wallet_manager.get_balance_summary()
+            # Get balance (use simulated wallet in dry-run mode)
+            if self.trading_params.get('dry_run') and self.order_manager.simulated_wallet:
+                balance_summary = self.order_manager.simulated_wallet.get_balance_summary()
+                logger.info("*** DRY-RUN MODE ENABLED - Using Paper Trading ***")
+            else:
+                balance_summary = self.wallet_manager.get_balance_summary()
 
             logger.info(f"Trading Pairs: {list(self.trading_pairs.keys())}")
             logger.info(f"Timeframes: {list(self.timeframes.values())}")
@@ -164,14 +168,40 @@ class TradingBot:
             logger.info(f"Trading Cycle #{self.total_cycles} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             logger.info("=" * 60)
 
-            # 1. Check wallet balance and health
+            # 1. Check wallet balance and health (use simulated wallet in dry-run mode)
             self.status_tracker.update_action('Checking Balance', 'Verifying wallet health and available margin')
 
-            balance_health = self.wallet_manager.get_balance_health()
-            logger.info(
-                f"Balance Health: {balance_health['status']} "
-                f"(Utilization: {balance_health['utilization_percent']:.2f}%)"
-            )
+            if self.trading_params.get('dry_run') and self.order_manager.simulated_wallet:
+                # Use simulated wallet for balance health in dry-run mode
+                sim_summary = self.order_manager.simulated_wallet.get_balance_summary()
+                total = sim_summary['total_balance']
+                used = sim_summary['used_margin']
+                utilization = (used / total * 100) if total > 0 else 0
+
+                if utilization > 80:
+                    health_status = 'critical'
+                elif utilization > 60:
+                    health_status = 'warning'
+                else:
+                    health_status = 'healthy'
+
+                balance_health = {
+                    'status': health_status,
+                    'utilization_percent': utilization,
+                    'available_balance': sim_summary['available_balance'],
+                    'total_balance': total,
+                    'used_margin': used
+                }
+                logger.info(
+                    f"[DRY-RUN] Balance Health: {health_status} "
+                    f"(Utilization: {utilization:.2f}%, Available: ${sim_summary['available_balance']:.2f})"
+                )
+            else:
+                balance_health = self.wallet_manager.get_balance_health()
+                logger.info(
+                    f"Balance Health: {balance_health['status']} "
+                    f"(Utilization: {balance_health['utilization_percent']:.2f}%)"
+                )
 
             if balance_health['status'] == 'critical':
                 logger.warning("Critical balance utilization, skipping new trades")

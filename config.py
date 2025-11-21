@@ -20,7 +20,8 @@ TRADING_PAIRS = {
     "XRP": "XRPUSDT",
     "BNB": "BNBUSDT",
     "SOL": "SOLUSDT",
-    "ZEC": "ZECUSDT"
+    "ZEC": "ZECUSDT",
+    "TAO": "TAOUSDT"
 }
 
 # Timeframes
