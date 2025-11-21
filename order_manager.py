@@ -63,33 +63,57 @@ class OrderManager:
             return 0.0
 
     def calculate_tp_sl_prices(self, entry_price: float, side: str,
-                              tp_percent: float, sl_percent: float) -> Dict[str, float]:
+                              tp_percent: float, sl_percent: float,
+                              atr_value: float = None) -> Dict[str, float]:
         """
         Calculate take profit and stop loss prices
 
         Args:
             entry_price: Entry price
             side: 'long' or 'short'
-            tp_percent: Take profit percentage
-            sl_percent: Stop loss percentage
+            tp_percent: Take profit percentage (used as fallback)
+            sl_percent: Stop loss percentage (used as fallback)
+            atr_value: Current ATR value for dynamic stop loss (optional)
 
         Returns:
             Dict with TP and SL prices
         """
         try:
-            if side == 'long':
-                # Long position
-                take_profit = entry_price * (1 + tp_percent / 100)
-                stop_loss = entry_price * (1 - sl_percent / 100)
-            else:
-                # Short position
-                take_profit = entry_price * (1 - tp_percent / 100)
-                stop_loss = entry_price * (1 + sl_percent / 100)
+            use_atr = self.risk_config.get('use_atr_stop_loss', False) and atr_value is not None and atr_value > 0
 
-            logger.info(
-                f"TP/SL calculated for {side.upper()} at {entry_price}: "
-                f"TP={take_profit:.2f}, SL={stop_loss:.2f}"
-            )
+            if use_atr:
+                # ATR-based TP/SL calculation
+                atr_sl_multiplier = self.risk_config.get('atr_stop_loss_multiplier', 1.5)
+                atr_tp_multiplier = self.risk_config.get('atr_take_profit_multiplier', 3.0)
+
+                sl_distance = atr_value * atr_sl_multiplier
+                tp_distance = atr_value * atr_tp_multiplier
+
+                if side == 'long':
+                    stop_loss = entry_price - sl_distance
+                    take_profit = entry_price + tp_distance
+                else:
+                    stop_loss = entry_price + sl_distance
+                    take_profit = entry_price - tp_distance
+
+                logger.info(
+                    f"ATR-based TP/SL calculated for {side.upper()} at {entry_price}: "
+                    f"ATR={atr_value:.4f}, SL={stop_loss:.2f} ({atr_sl_multiplier}x ATR), "
+                    f"TP={take_profit:.2f} ({atr_tp_multiplier}x ATR)"
+                )
+            else:
+                # Percentage-based TP/SL calculation (fallback)
+                if side == 'long':
+                    take_profit = entry_price * (1 + tp_percent / 100)
+                    stop_loss = entry_price * (1 - sl_percent / 100)
+                else:
+                    take_profit = entry_price * (1 - tp_percent / 100)
+                    stop_loss = entry_price * (1 + sl_percent / 100)
+
+                logger.info(
+                    f"Percent-based TP/SL calculated for {side.upper()} at {entry_price}: "
+                    f"TP={take_profit:.2f}, SL={stop_loss:.2f}"
+                )
 
             return {
                 'take_profit': take_profit,
@@ -233,7 +257,8 @@ class OrderManager:
         return result
 
     def open_position_with_tp_sl(self, pair: str, side: str, balance: float,
-                                current_price: float, signal_strength: float) -> Optional[Dict]:
+                                current_price: float, signal_strength: float,
+                                atr_value: float = None) -> Optional[Dict]:
         """
         Open a position with automatic TP/SL orders
 
@@ -243,6 +268,7 @@ class OrderManager:
             balance: Available balance
             current_price: Current market price
             signal_strength: Signal strength (affects position size)
+            atr_value: Current ATR value for dynamic stop loss (optional)
 
         Returns:
             Dict with position and order details
@@ -273,12 +299,13 @@ class OrderManager:
             # Get entry price from order response
             entry_price = float(order.get('average_price', current_price))
 
-            # Calculate TP/SL prices
+            # Calculate TP/SL prices (using ATR if available)
             tp_sl = self.calculate_tp_sl_prices(
                 entry_price,
                 side,
                 self.risk_config['take_profit_percent'],
-                self.risk_config['stop_loss_percent']
+                self.risk_config['stop_loss_percent'],
+                atr_value=atr_value
             )
 
             # Get position ID from order

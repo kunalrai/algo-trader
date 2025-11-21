@@ -43,6 +43,10 @@ INDICATORS = {
         "period": 14,
         "overbought": 70,
         "oversold": 30
+    },
+    "ATR": {
+        "period": 14,
+        "multiplier": 1.5  # Stop loss = ATR * multiplier
     }
 }
 
@@ -50,10 +54,13 @@ INDICATORS = {
 RISK_MANAGEMENT = {
     "max_position_size_percent": 10,  # Max 10% of balance per trade
     "leverage": 5,                     # Default leverage
-    "stop_loss_percent": 2.0,          # 2% stop loss
+    "stop_loss_percent": 2.0,          # 2% stop loss (fallback if ATR not available)
     "take_profit_percent": 4.0,        # 4% take profit (2:1 risk-reward)
     "trailing_stop": True,             # Enable trailing stop
-    "trailing_stop_percent": 1.5       # Trailing stop distance
+    "trailing_stop_percent": 1.5,      # Trailing stop distance
+    "use_atr_stop_loss": True,         # Use ATR-based stop loss instead of fixed %
+    "atr_stop_loss_multiplier": 1.5,   # ATR multiplier for stop loss (e.g., 1.5 ATR)
+    "atr_take_profit_multiplier": 3.0  # ATR multiplier for take profit (e.g., 3.0 ATR for 2:1 R:R)
 }
 
 # Trading Parameters

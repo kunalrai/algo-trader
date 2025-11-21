@@ -257,6 +257,29 @@
                     <div id="top-trading-mode-badge" class="px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-semibold bg-yellow-500 bg-opacity-20 text-yellow-500 whitespace-nowrap">
                         DRY RUN
                     </div>
+                    <!-- User Profile Dropdown -->
+                    {% if current_user.is_authenticated %}
+                    <div class="relative" x-data="{ open: false }">
+                        <button onclick="toggleProfileMenu()" class="flex items-center gap-2 text-gray-300 hover:text-white">
+                            {% if current_user.avatar_url %}
+                                <img src="{{ current_user.avatar_url }}" alt="Avatar" class="w-8 h-8 rounded-full">
+                            {% else %}
+                                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-sm font-bold text-white">
+                                    {{ (current_user.name or current_user.email)[0].upper() }}
+                                </div>
+                            {% endif %}
+                            <span class="hidden md:inline text-sm">{{ current_user.name or current_user.email.split('@')[0] }}</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        <div id="profileMenu" class="hidden absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg border border-gray-700 py-1 z-50">
+                            <a href="{{ url_for('auth.profile') }}" class="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700">Profile Settings</a>
+                            <div class="border-t border-gray-700 my-1"></div>
+                            <a href="{{ url_for('auth.logout') }}" class="block px-4 py-2 text-sm text-red-400 hover:bg-gray-700">Sign Out</a>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </header>
 
@@ -304,7 +327,7 @@
     <!-- Scripts -->
     <script>
         // Pass trading pairs from Flask template to JavaScript
-        window.TRADING_PAIRS_CONFIG = {{ trading_pairs | tojson }};
+        window.TRADING_PAIRS_CONFIG = {{ trading_pairs | default([]) | tojson }};
 
         // Toggle sidebar on mobile
         function toggleSidebar() {
@@ -357,6 +380,21 @@
         // Update trading mode on page load and every 5 seconds
         updateTradingMode();
         setInterval(updateTradingMode, 5000);
+
+        // Toggle profile menu
+        function toggleProfileMenu() {
+            const menu = document.getElementById('profileMenu');
+            menu.classList.toggle('hidden');
+        }
+
+        // Close profile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('profileMenu');
+            const button = event.target.closest('button');
+            if (menu && !menu.contains(event.target) && !button?.onclick?.toString().includes('toggleProfileMenu')) {
+                menu.classList.add('hidden');
+            }
+        });
     </script>
 
     {% block extra_scripts %}{% endblock %}

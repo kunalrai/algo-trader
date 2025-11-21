@@ -436,17 +436,18 @@ class TradingBot:
                 return
 
             # Execute trade
+            atr_value = signal.get('atr')
             logger.info(
                 f"SIGNAL DETECTED: {pair} - {action.upper()} "
-                f"(Strength: {strength:.2f})"
+                f"(Strength: {strength:.2f}, ATR: {atr_value:.4f if atr_value else 'N/A'})"
             )
 
-            self._execute_trade(pair, action, strength, current_price)
+            self._execute_trade(pair, action, strength, current_price, atr_value)
 
         except Exception as e:
             logger.error(f"Error evaluating signal: {e}")
 
-    def _execute_trade(self, pair: str, side: str, strength: float, current_price: float):
+    def _execute_trade(self, pair: str, side: str, strength: float, current_price: float, atr_value: float = None):
         """
         Execute a trade based on signal
 
@@ -455,6 +456,7 @@ class TradingBot:
             side: 'long' or 'short'
             strength: Signal strength
             current_price: Current market price
+            atr_value: Current ATR value for dynamic stop loss
         """
         try:
             # Get available balance (from simulated wallet in dry-run mode)
@@ -469,13 +471,14 @@ class TradingBot:
 
             logger.info(f"Executing {side.upper()} trade for {pair}")
 
-            # Open position with TP/SL
+            # Open position with TP/SL (using ATR if available)
             result = self.order_manager.open_position_with_tp_sl(
                 pair=pair,
                 side=side,
                 balance=available_balance,
                 current_price=current_price,
-                signal_strength=strength
+                signal_strength=strength,
+                atr_value=atr_value
             )
 
             if result:

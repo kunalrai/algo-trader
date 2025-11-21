@@ -15,6 +15,35 @@ class TechnicalIndicators:
     """Calculate technical indicators for trading signals"""
 
     @staticmethod
+    def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+        """
+        Calculate Average True Range (ATR)
+
+        Args:
+            df: DataFrame with OHLCV data (must have 'high', 'low', 'close' columns)
+            period: ATR period (default 14)
+
+        Returns:
+            Series with ATR values
+        """
+        high = df['high']
+        low = df['low']
+        close = df['close']
+
+        # Calculate True Range components
+        tr1 = high - low  # Current high - current low
+        tr2 = abs(high - close.shift(1))  # Current high - previous close
+        tr3 = abs(low - close.shift(1))   # Current low - previous close
+
+        # True Range is the max of the three
+        true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+        # ATR is the exponential moving average of True Range
+        atr = true_range.ewm(span=period, adjust=False).mean()
+
+        return atr
+
+    @staticmethod
     def calculate_ema(df: pd.DataFrame, period: int, column: str = 'close') -> pd.Series:
         """
         Calculate Exponential Moving Average

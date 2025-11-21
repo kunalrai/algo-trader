@@ -182,6 +182,19 @@ class SignalGenerator:
                 'long_term': long_term_sr
             }
 
+            # Calculate ATR from medium-term timeframe (most suitable for stop loss)
+            atr_value = None
+            atr_timeframe = 'medium_term' if 'medium_term' in multi_tf_data else 'short_term'
+            if atr_timeframe in multi_tf_data:
+                df = multi_tf_data[atr_timeframe]
+                atr_period = self.indicator_config.get('ATR', {}).get('period', 14)
+                atr_series = TechnicalIndicators.calculate_atr(df, period=atr_period)
+                if len(atr_series) > 0 and not atr_series.isna().all():
+                    atr_value = float(atr_series.iloc[-1])
+                    logger.debug(f"ATR({atr_period}) for {pair}: {atr_value:.4f}")
+
+            signal['atr'] = atr_value
+
             return signal
 
         except Exception as e:
@@ -235,6 +248,17 @@ class SignalGenerator:
             if not strategy_signal:
                 return None
 
+            # Calculate ATR from 1h timeframe (most suitable for stop loss)
+            atr_value = None
+            atr_timeframe = '1h' if '1h' in strategy_data else '5m'
+            if atr_timeframe in strategy_data:
+                df = strategy_data[atr_timeframe]
+                atr_period = self.indicator_config.get('ATR', {}).get('period', 14)
+                atr_series = TechnicalIndicators.calculate_atr(df, period=atr_period)
+                if len(atr_series) > 0 and not atr_series.isna().all():
+                    atr_value = float(atr_series.iloc[-1])
+                    logger.debug(f"ATR({atr_period}) for {pair}: {atr_value:.4f}")
+
             # Convert strategy signal to expected format
             signal = {
                 'pair': pair,
@@ -246,7 +270,8 @@ class SignalGenerator:
                 'indicators': strategy_signal.get('indicators', {}),
                 'strategy_name': active_strategy.name,
                 'strategy_metadata': strategy_signal.get('metadata', {}),
-                'timestamp': pd.Timestamp.now()
+                'timestamp': pd.Timestamp.now(),
+                'atr': atr_value
             }
 
             logger.info(

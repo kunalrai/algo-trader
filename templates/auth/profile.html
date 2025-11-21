@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - Algo Trader{% endblock %}
+{% block page_title %}Profile Settings{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="p-4 rounded-lg {% if category == 'error' %}bg-red-500 bg-opacity-20 text-red-400 border border-red-500{% elif category == 'success' %}bg-green-500 bg-opacity-20 text-green-400 border border-green-500{% else %}bg-blue-500 bg-opacity-20 text-blue-400 border border-blue-500{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- User Info Card -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <div class="flex items-center gap-4 mb-6">
+            {% if current_user.avatar_url %}
+                <img src="{{ current_user.avatar_url }}" alt="Avatar" class="w-16 h-16 rounded-full">
+            {% else %}
+                <div class="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-2xl font-bold text-white">
+                    {{ (current_user.name or current_user.email)[0].upper() }}
+                </div>
+            {% endif %}
+            <div>
+                <h2 class="text-xl font-bold text-white">{{ current_user.name or 'User' }}</h2>
+                <p class="text-gray-400">{{ current_user.email }}</p>
+                <p class="text-sm text-gray-500">Member since {{ current_user.created_at.strftime('%B %Y') }}</p>
+            </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth.profile') }}">
+            <input type="hidden" name="action" value="update_profile">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Name</label>
+                    <input type="text" name="name" value="{{ current_user.name or '' }}"
+                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex items-end">
+                    <button type="submit" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">
+                        Update Profile
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Trading Settings -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+            </svg>
+            Trading Settings
+        </h3>
+
+        <form method="POST" action="{{ url_for('auth.profile') }}">
+            <input type="hidden" name="action" value="update_trading">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Trading Mode -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Trading Mode</label>
+                    <select name="trading_mode" class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="paper" {% if profile.trading_mode == 'paper' %}selected{% endif %}>Paper Trading (Simulated)</option>
+                        <option value="live" {% if profile.trading_mode == 'live' %}selected{% endif %} {% if not profile.has_api_keys %}disabled{% endif %}>
+                            Live Trading {% if not profile.has_api_keys %}(Requires API Keys){% endif %}
+                        </option>
+                    </select>
+                </div>
+
+                <!-- Default Strategy -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Default Strategy</label>
+                    <select name="default_strategy" class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        {% for strategy in strategies %}
+                            <option value="{{ strategy.id }}" {% if profile.default_strategy == strategy.id %}selected{% endif %}>
+                                {{ strategy.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Simulated Balance -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Paper Trading Balance (USDT)</label>
+                    <input type="number" name="simulated_balance" value="{{ profile.simulated_balance }}" min="100" step="100"
+                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <!-- Max Positions -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Max Open Positions</label>
+                    <input type="number" name="max_open_positions" value="{{ profile.max_open_positions }}" min="1" max="10"
+                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <!-- Leverage -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Leverage</label>
+                    <select name="leverage" class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        {% for lev in [1, 2, 3, 5, 10, 20] %}
+                            <option value="{{ lev }}" {% if profile.leverage == lev %}selected{% endif %}>{{ lev }}x</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Stop Loss -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Stop Loss %</label>
+                    <input type="number" name="stop_loss_percent" value="{{ profile.stop_loss_percent }}" min="0.5" max="10" step="0.5"
+                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <!-- Take Profit -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Take Profit %</label>
+                    <input type="number" name="take_profit_percent" value="{{ profile.take_profit_percent }}" min="1" max="20" step="0.5"
+                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <button type="submit" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">
+                    Save Trading Settings
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- API Keys -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+            </svg>
+            CoinDCX API Keys
+        </h3>
+
+        {% if profile.has_api_keys %}
+            <div class="bg-green-500 bg-opacity-10 border border-green-500 rounded-lg p-4 mb-4">
+                <p class="text-green-400 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    API Keys configured. You can enable live trading.
+                </p>
+            </div>
+
+            <form method="POST" action="{{ url_for('auth.profile') }}" class="inline">
+                <input type="hidden" name="action" value="delete_api_keys">
+                <button type="submit" onclick="return confirm('Are you sure you want to remove your API keys?')"
+                    class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition">
+                    Remove API Keys
+                </button>
+            </form>
+        {% else %}
+            <div class="bg-yellow-500 bg-opacity-10 border border-yellow-500 rounded-lg p-4 mb-4">
+                <p class="text-yellow-400 text-sm">
+                    Add your CoinDCX API keys to enable live trading. Your keys are encrypted and stored securely.
+                </p>
+            </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('auth.profile') }}" class="mt-4">
+            <input type="hidden" name="action" value="update_api_keys">
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">API Key</label>
+                    <input type="password" name="coindcx_api_key" placeholder="{% if profile.has_api_keys %}••••••••••••••••{% else %}Enter your CoinDCX API Key{% endif %}"
+                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">API Secret</label>
+                    <input type="password" name="coindcx_api_secret" placeholder="{% if profile.has_api_keys %}••••••••••••••••{% else %}Enter your CoinDCX API Secret{% endif %}"
+                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <button type="submit" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">
+                    {% if profile.has_api_keys %}Update{% else %}Save{% endif %} API Keys
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Reset Wallet -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            Reset Paper Trading Wallet
+        </h3>
+
+        <p class="text-gray-400 mb-4">
+            Reset your simulated wallet to start fresh. This will clear all paper trading positions and history.
+        </p>
+
+        <form method="POST" action="{{ url_for('auth.profile') }}">
+            <input type="hidden" name="action" value="reset_wallet">
+            <div class="flex items-center gap-4">
+                <input type="number" name="initial_balance" value="1000" min="100" step="100"
+                    class="w-32 px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <span class="text-gray-400">USDT</span>
+                <button type="submit" onclick="return confirm('This will reset your paper trading wallet. Continue?')"
+                    class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition">
+                    Reset Wallet
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Change Password (only for non-OAuth users) -->
+    {% if current_user.password_hash %}
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+            </svg>
+            Change Password
+        </h3>
+
+        <form method="POST" action="{{ url_for('auth.profile') }}">
+            <input type="hidden" name="action" value="change_password">
+
+            <div class="space-y-4 max-w-md">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Current Password</label>
+                    <input type="password" name="current_password" required
+                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">New Password</label>
+                    <input type="password" name="new_password" required minlength="8"
+                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Confirm New Password</label>
+                    <input type="password" name="confirm_new_password" required minlength="8"
+                        class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <button type="submit" class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition">
+                    Change Password
+                </button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Logout -->
+    <div class="text-center py-4">
+        <a href="{{ url_for('auth.logout') }}" class="text-red-400 hover:text-red-300 font-medium">
+            Sign Out
+        </a>
+    </div>
+</div>
+{% endblock %}

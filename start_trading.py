@@ -1,6 +1,7 @@
 """
 All-in-One Trading Bot Launcher
 Starts bot and dashboard together with full monitoring
+Multi-user support with authentication
 """
 
 import subprocess
@@ -19,6 +20,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 def print_banner():
     """Print startup banner"""
@@ -27,7 +35,8 @@ def print_banner():
     ║                                                               ║
     ║         🤖 CRYPTO FUTURES TRADING BOT 🤖                     ║
     ║                                                               ║
-    ║         All-in-One Trading System                            ║
+    ║         Professional Multi-User Trading Platform             ║
+    ║         Paper Trading & Live Trading Support                 ║
     ║                                                               ║
     ╚═══════════════════════════════════════════════════════════════╝
     """
@@ -62,6 +71,10 @@ def check_dependencies():
 
     required_modules = [
         ('flask', 'flask'),
+        ('Flask-SQLAlchemy', 'flask_sqlalchemy'),
+        ('Flask-Login', 'flask_login'),
+        ('Authlib', 'authlib'),
+        ('cryptography', 'cryptography'),
         ('pandas', 'pandas'),
         ('numpy', 'numpy'),
         ('requests', 'requests'),
@@ -77,7 +90,7 @@ def check_dependencies():
 
     if missing:
         logger.error(f"Missing dependencies: {', '.join(missing)}")
-        logger.error("Install with: pip install " + " ".join(missing))
+        logger.error("Install with: pip install -r requirements.txt")
         return False
 
     logger.info("✓ All dependencies installed")
@@ -85,14 +98,36 @@ def check_dependencies():
 
 
 def check_env_file():
-    """Check if .env file exists with API keys"""
+    """Check if .env file exists with required configuration"""
     if not os.path.exists('.env'):
         logger.warning("⚠️  .env file not found")
-        logger.warning("   Create .env file with API_KEY and API_SECRET")
+        logger.warning("   Copy .env.example to .env and configure it")
         return False
 
     logger.info("✓ .env file found")
+
+    # Check for encryption key
+    encryption_key = os.getenv('ENCRYPTION_KEY', '')
+    if not encryption_key or encryption_key == 'your_generated_fernet_key_here':
+        logger.warning("⚠️  ENCRYPTION_KEY not set in .env")
+        logger.warning("   Generate with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"")
+
     return True
+
+
+def initialize_database():
+    """Initialize database tables"""
+    logger.info("Initializing database...")
+    try:
+        from app import app
+        from models import db
+        with app.app_context():
+            db.create_all()
+        logger.info("✓ Database initialized (algo_trader.db)")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}")
+        return False
 
 
 def run_bot():
@@ -136,16 +171,16 @@ def print_instructions():
     print("\n" + "="*70)
     print("SYSTEM STARTED")
     print("="*70)
-    print("\n📊 Dashboard:      http://localhost:5000 (includes live P&L)")
+    print("\n📊 Dashboard:       http://localhost:5000")
+    print("🔐 Login Required:  Register or sign in with Google/Email")
     print("🛑 Stop System:     Press Ctrl+C")
 
-    if config.TRADING_PARAMS['dry_run']:
-        print("\n💡 DRY-RUN MODE FEATURES:")
-        print("   ✓ $1000 simulated balance")
-        print("   ✓ Real market data")
-        print("   ✓ No real trades")
-        print("   ✓ Full P&L tracking")
-        print("   ✓ Trade history saved to: simulated_wallet.json")
+    print("\n👤 USER FEATURES:")
+    print("   ✓ Google OAuth & Email/Password login")
+    print("   ✓ Personal profile with trading settings")
+    print("   ✓ Paper Trading (simulated) mode")
+    print("   ✓ Live Trading with your own API keys")
+    print("   ✓ Encrypted API key storage")
 
     print("\n⚙️  WHAT'S HAPPENING:")
     print("   • Bot scans markets every 60 seconds")
@@ -154,29 +189,20 @@ def print_instructions():
     print("   • Monitors positions with TP/SL")
     print("   • Dashboard updates every 5 seconds")
 
-    print("\n📚 USEFUL COMMANDS:")
-    print("   python view_pnl.py       - View detailed P&L report")
-    print("   python test_signals.py   - Test signal generation")
+    print("\n📚 FIRST TIME SETUP:")
+    print("   1. Open http://localhost:5000")
+    print("   2. Register with email or Google")
+    print("   3. Go to Profile to configure trading settings")
+    print("   4. Add CoinDCX API keys for live trading (optional)")
 
     print("\n" + "="*70)
-    print("\n⏳ System running... Check dashboard for live updates\n")
+    print("\n⏳ System running... Open dashboard to get started\n")
 
 
 def main():
     """Main entry point"""
     print_banner()
     print_config()
-
-    # Confirmation for live mode
-    if not config.TRADING_PARAMS['dry_run']:
-        print("\n" + "⚠️ "*35)
-        print("⚠️  WARNING: LIVE TRADING MODE ENABLED!")
-        print("⚠️  Real trades will be executed with real money!")
-        print("⚠️ "*35)
-        response = input("\nType 'YES' to continue with live trading: ")
-        if response != 'YES':
-            logger.info("Exiting...")
-            return
 
     # Pre-flight checks
     print("\n" + "="*70)
@@ -185,11 +211,17 @@ def main():
 
     if not check_dependencies():
         logger.error("❌ Dependency check failed")
+        logger.error("   Run: pip install -r requirements.txt")
         return
 
     if not check_env_file():
-        logger.warning("⚠️  API credentials not configured")
-        logger.info("   Continuing anyway (will use .env if available)")
+        logger.warning("⚠️  Configuration not complete")
+        logger.info("   Copy .env.example to .env and configure it")
+
+    # Initialize database
+    if not initialize_database():
+        logger.error("❌ Could not initialize database")
+        return
 
     logger.info("✓ All checks passed")
 
@@ -220,12 +252,7 @@ def main():
         print("SHUTTING DOWN")
         print("="*70)
         logger.info("Stopping all components...")
-
-        # Show final summary if dry-run
-        if config.TRADING_PARAMS['dry_run']:
-            print("\n📊 To view final results:")
-            print("   python view_pnl.py")
-
+        logger.info("User data saved to: algo_trader.db")
         logger.info("Goodbye! 👋")
 
 
