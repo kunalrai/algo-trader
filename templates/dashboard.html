@@ -228,6 +228,60 @@
             </div>
         </div>
 
+        <!-- Strategy Selector -->
+        <div class="bg-gradient-to-r from-purple-900 to-pink-900 rounded-lg shadow-lg p-6 border border-purple-600 mb-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    Trading Strategy
+                </h2>
+                <div class="flex gap-2 items-center">
+                    <span class="text-xs text-gray-400">Strategy System:</span>
+                    <div id="strategy-system-status" class="bg-gray-800 px-3 py-1 rounded-full">
+                        <span class="text-xs font-semibold text-gray-400" id="strategy-system-text">Legacy Mode</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Active Strategy Info -->
+                <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
+                    <p class="text-xs text-gray-400 uppercase mb-2">Active Strategy</p>
+                    <p class="text-xl font-bold text-white mb-2" id="active-strategy-name">Combined Multi-Indicator</p>
+                    <p class="text-sm text-gray-300 mb-3" id="active-strategy-description">
+                        Combines EMA, MACD, and RSI signals across multiple timeframes
+                    </p>
+                    <div class="text-xs text-gray-400">
+                        <div class="mb-1">Version: <span id="strategy-version" class="text-gray-300">1.0.0</span></div>
+                        <div class="mb-1">Timeframes: <span id="strategy-timeframes" class="text-gray-300">5m, 1h, 4h</span></div>
+                        <div>Indicators: <span id="strategy-indicators" class="text-gray-300">EMA, MACD, RSI</span></div>
+                    </div>
+                </div>
+
+                <!-- Strategy Selector -->
+                <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
+                    <p class="text-xs text-gray-400 uppercase mb-3">Change Strategy</p>
+                    <select id="strategy-selector" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 mb-3 focus:outline-none focus:border-purple-500">
+                        <option value="combined">Combined Multi-Indicator</option>
+                        <option value="ema_crossover">EMA Crossover</option>
+                        <option value="macd">MACD Strategy</option>
+                        <option value="rsi">RSI Mean Reversion</option>
+                    </select>
+                    <button onclick="changeStrategy()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Apply Strategy
+                    </button>
+                    <div class="mt-3 text-xs text-gray-400 bg-gray-700 bg-opacity-50 rounded p-2">
+                        ⚠️ Changing strategy will restart the bot analysis cycle
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Live P&L Statistics (Dry-Run Mode Only) -->
         <div id="pnl-stats-section" class="bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg shadow-lg p-6 border border-gray-600 mb-8" style="display: none;">
             <div class="flex justify-between items-center mb-6">
@@ -419,6 +473,52 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Live Activity Feed -->
+        <div class="bg-gray-800 rounded-lg shadow-lg border border-gray-700 mb-8">
+            <div class="p-6 border-b border-gray-700">
+                <div class="flex justify-between items-center flex-wrap gap-4">
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        Live Activity Feed
+                    </h2>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="filterActivity('all')" id="filter-all" class="filter-btn bg-blue-600 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-blue-700 transition">
+                            All
+                        </button>
+                        <button onclick="filterActivity('signal_analysis')" id="filter-signal_analysis" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
+                            Signals
+                        </button>
+                        <button onclick="filterActivity('position_opened')" id="filter-position_opened" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
+                            Positions
+                        </button>
+                        <button onclick="filterActivity('position_closed')" id="filter-position_closed" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
+                            Closed
+                        </button>
+                        <button onclick="filterActivity('risk_check')" id="filter-risk_check" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
+                            Risk
+                        </button>
+                        <button onclick="clearActivityFeed()" class="bg-red-600 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-red-700 transition">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6">
+                <!-- Activity Stream -->
+                <div id="activity-feed" class="space-y-2 max-h-96 overflow-y-auto">
+                    <div class="text-center text-gray-400 py-8">
+                        <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p>Waiting for bot activity...</p>
+                        <p class="text-xs text-gray-500 mt-2">Activity feed will update every 5 seconds</p>
+                    </div>
+                </div>
             </div>
         </div>
 

@@ -1,6 +1,7 @@
 """
 Trading Signal Generator
 Combines multi-timeframe analysis to generate trading signals
+Supports pluggable strategy system
 """
 
 import pandas as pd
@@ -8,6 +9,7 @@ from typing import Dict, Optional
 import logging
 from indicators import TechnicalIndicators
 from data_fetcher import DataFetcher
+from strategies.strategy_manager import get_strategy_manager
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +17,12 @@ logger = logging.getLogger(__name__)
 class SignalGenerator:
     """Generate trading signals based on multi-timeframe technical analysis"""
 
-    def __init__(self, data_fetcher: DataFetcher, indicator_config: Dict, rsi_config: Dict):
+    def __init__(self, data_fetcher: DataFetcher, indicator_config: Dict, rsi_config: Dict, use_strategy_system: bool = False):
         self.data_fetcher = data_fetcher
         self.indicator_config = indicator_config
         self.rsi_config = rsi_config
+        self.use_strategy_system = use_strategy_system
+        self.strategy_manager = get_strategy_manager() if use_strategy_system else None
 
     def analyze_timeframe(self, df: pd.DataFrame, timeframe_name: str) -> Dict:
         """
@@ -138,14 +142,17 @@ class SignalGenerator:
                     self.indicator_config['RSI']['period']
                 )
 
+            # Use strategy system if enabled
+            if self.use_strategy_system and self.strategy_manager:
+                return self._generate_signal_with_strategy(pair, multi_tf_data, timeframes)
+
+            # LEGACY MODE: Original signal generation
             # Analyze each timeframe
             analyses = {}
             for tf_name, df in multi_tf_data.items():
                 analyses[tf_name] = self.analyze_timeframe(df, tf_name)
 
             # Calculate support/resistance levels
-            # Short-term: Use 5m or 1h data
-            # Long-term: Use 4h data
             short_term_sr = {}
             long_term_sr = {}
 
@@ -179,6 +186,78 @@ class SignalGenerator:
 
         except Exception as e:
             logger.error(f"Error generating signal for {pair}: {e}")
+            return None
+
+    def _generate_signal_with_strategy(self, pair: str, multi_tf_data: Dict, timeframes: Dict) -> Optional[Dict]:
+        """
+        Generate signal using pluggable strategy system
+
+        Args:
+            pair: Trading pair
+            multi_tf_data: Multi-timeframe data with indicators
+            timeframes: Timeframe configuration
+
+        Returns:
+            Signal dictionary or None
+        """
+        try:
+            active_strategy = self.strategy_manager.get_active_strategy()
+            if not active_strategy:
+                logger.warning("No active strategy set, falling back to legacy mode")
+                return None
+
+            # Map timeframe names to strategy format (5m, 1h, 4h)
+            strategy_data = {}
+            timeframe_mapping = {
+                'short_term': '5m',
+                'medium_term': '1h',
+                'long_term': '4h'
+            }
+
+            for tf_name, df in multi_tf_data.items():
+                mapped_name = timeframe_mapping.get(tf_name, tf_name)
+                strategy_data[mapped_name] = df
+
+            # Get current price
+            current_price = 0
+            if '5m' in strategy_data and not strategy_data['5m'].empty:
+                current_price = strategy_data['5m']['close'].iloc[-1]
+            elif multi_tf_data:
+                first_df = next(iter(multi_tf_data.values()))
+                current_price = first_df['close'].iloc[-1] if not first_df.empty else 0
+
+            # Analyze with active strategy
+            strategy_signal = self.strategy_manager.analyze_with_active_strategy(
+                strategy_data,
+                current_price
+            )
+
+            if not strategy_signal:
+                return None
+
+            # Convert strategy signal to expected format
+            signal = {
+                'pair': pair,
+                'action': strategy_signal['action'],
+                'strength': strategy_signal['strength'],
+                'current_price': current_price,
+                'reasons': strategy_signal['reasons'],
+                'confidence': strategy_signal.get('confidence', strategy_signal['strength']),
+                'indicators': strategy_signal.get('indicators', {}),
+                'strategy_name': active_strategy.name,
+                'strategy_metadata': strategy_signal.get('metadata', {}),
+                'timestamp': pd.Timestamp.now()
+            }
+
+            logger.info(
+                f"Signal for {pair} using {active_strategy.name}: {signal['action'].upper()} "
+                f"(Strength: {signal['strength']:.2f})"
+            )
+
+            return signal
+
+        except Exception as e:
+            logger.error(f"Error generating signal with strategy for {pair}: {e}")
             return None
 
     def _combine_multi_timeframe_signals(self, pair: str, analyses: Dict) -> Dict:
@@ -224,6 +303,21 @@ class SignalGenerator:
         # Get current price
         current_price = analyses.get('short_term', {}).get('last_close', 0)
 
+        # Build reasons list explaining the decision
+        reasons = []
+        for tf_name, analysis in analyses.items():
+            trend = analysis.get('trend', 'neutral')
+            if trend != 'neutral':
+                reasons.append(f"{tf_name}: {trend} trend (strength: {analysis.get('strength', 0):.2f})")
+
+        # Add overall scores
+        if action == 'long':
+            reasons.append(f"Overall bullish score: {bullish_score:.2f} > bearish: {bearish_score:.2f}")
+        elif action == 'short':
+            reasons.append(f"Overall bearish score: {bearish_score:.2f} > bullish: {bullish_score:.2f}")
+        else:
+            reasons.append(f"No clear signal - bullish: {bullish_score:.2f}, bearish: {bearish_score:.2f}")
+
         signal = {
             'pair': pair,
             'action': action,
@@ -232,6 +326,7 @@ class SignalGenerator:
             'analyses': analyses,
             'bullish_score': bullish_score,
             'bearish_score': bearish_score,
+            'reasons': reasons,  # NEW: Explanation of decision
             'timestamp': pd.Timestamp.now()
         }
 

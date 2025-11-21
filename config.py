@@ -67,6 +67,45 @@ TRADING_PARAMS = {
     "simulated_balance": 1000.0        # Starting balance for dry-run mode (USDT)
 }
 
+# Strategy System Configuration
+STRATEGY_CONFIG = {
+    "enabled": False,                  # Enable pluggable strategy system (False = legacy mode)
+    "active_strategy": "combined",     # Active strategy ID: ema_crossover, macd, rsi, combined
+
+    # Strategy-specific parameters (overrides)
+    "strategy_params": {
+        "ema_crossover": {
+            "fast_ema": 9,
+            "slow_ema": 21,
+            "min_strength": 0.6,
+            "use_multi_timeframe": True
+        },
+        "macd": {
+            "histogram_threshold": 0.0,
+            "min_strength": 0.65,
+            "use_histogram": True,
+            "confirm_with_trend": True
+        },
+        "rsi": {
+            "oversold_level": 30,
+            "overbought_level": 70,
+            "extreme_oversold": 20,
+            "extreme_overbought": 80,
+            "min_strength": 0.6,
+            "use_divergence": False
+        },
+        "combined": {
+            "min_signal_strength": 0.7,
+            "timeframes": ['5m', '1h', '4h'],
+            "weights": {
+                '4h': 3.0,
+                '1h': 2.0,
+                '5m': 1.0
+            }
+        }
+    }
+}
+
 # Logging
 LOG_LEVEL = "INFO"
 LOG_FILE = "trading_bot.log"

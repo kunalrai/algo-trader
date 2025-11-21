@@ -119,9 +119,17 @@ async function fetchPrices() {
         const prices = await response.json();
 
         const container = document.getElementById('prices-container');
+
+        if (!container) {
+            return; // Container not found
+        }
+
         container.innerHTML = prices.map(p => `
-            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
-                <div class="text-sm text-gray-400 mb-1">${p.name}</div>
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition-all">
+                <div class="flex justify-between items-start mb-1">
+                    <div class="text-sm text-gray-400">${p.name}</div>
+                    <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse" title="Live update every 1 second"></div>
+                </div>
                 <div class="text-lg font-bold text-white">$${p.price.toFixed(2)}</div>
                 <div class="text-xs text-gray-500 mt-1">${p.symbol}</div>
             </div>
@@ -775,7 +783,8 @@ async function fetchBotStatus() {
 function refreshData() {
     console.log('[' + new Date().toLocaleTimeString() + '] Refreshing dashboard data...');
     fetchStatus();
-    fetchBotStatus();       // NEW: Fetch bot runtime status
+    fetchBotStatus();       // Bot runtime status
+    fetchBotActivity();     // NEW: Bot activity feed
     fetchSignals();
     fetchLiquidity();
     fetchPositions();
@@ -886,14 +895,364 @@ async function fetchRecentTrades() {
     }
 }
 
+// Activity Feed Functions
+let currentActivityFilter = 'all';
+
+// Fetch bot activity feed
+async function fetchBotActivity() {
+    try {
+        const limit = 50;
+        const url = currentActivityFilter === 'all'
+            ? `/api/bot/activity?limit=${limit}`
+            : `/api/bot/activity?limit=${limit}&type=${currentActivityFilter}`;
+
+        const response = await fetch(url);
+        const activities = await response.json();
+
+        renderActivityFeed(activities);
+    } catch (error) {
+        console.error('Error fetching bot activity:', error);
+    }
+}
+
+// Render activity feed
+function renderActivityFeed(activities) {
+    const feed = document.getElementById('activity-feed');
+
+    if (!activities || activities.length === 0) {
+        feed.innerHTML = `
+            <div class="text-center text-gray-400 py-8">
+                <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <p>No activity yet</p>
+                <p class="text-xs text-gray-500 mt-2">Waiting for bot to start...</p>
+            </div>
+        `;
+        return;
+    }
+
+    feed.innerHTML = activities.map(activity => renderActivityItem(activity)).join('');
+
+    // Auto-scroll to top to see newest activities
+    feed.scrollTop = 0;
+}
+
+// Render individual activity item
+function renderActivityItem(activity) {
+    const icons = {
+        'analyzing_pair': '🔍',
+        'market_scan': '📊',
+        'signal_analysis': '📈',
+        'position_decision': '💭',
+        'position_opened': '✅',
+        'position_closed': '🔒',
+        'risk_check': '⚠️',
+        'error': '❌'
+    };
+
+    const icon = icons[activity.action_type] || '📌';
+    const time = activity.time_formatted;
+
+    // Signal Analysis Activity
+    if (activity.action_type === 'signal_analysis') {
+        const signalColor = activity.signal === 'long' ? 'text-green-400' :
+                           activity.signal === 'short' ? 'text-red-400' : 'text-gray-400';
+        const strengthPercent = (activity.strength * 100).toFixed(0);
+        const strengthColor = activity.strength >= 0.7 ? 'text-green-400' : 'text-yellow-400';
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">${icon}</span>
+                        <div>
+                            <p class="font-semibold ${signalColor} text-lg">
+                                ${activity.pair} - ${activity.signal.toUpperCase()}
+                            </p>
+                            <p class="text-xs text-gray-400">
+                                Strength: <span class="${strengthColor}">${strengthPercent}%</span>
+                                ${activity.strength >= activity.threshold ? ' (✓ Above threshold)' : ' (✗ Below threshold)'}
+                            </p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${time}</span>
+                </div>
+                <div class="ml-11 text-xs text-gray-300 space-y-1">
+                    ${activity.reasons ? activity.reasons.map(r => `<div class="flex items-start gap-2"><span class="text-blue-400">•</span><span>${r}</span></div>`).join('') : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    // Position Opened
+    if (activity.action_type === 'position_opened') {
+        const sideColor = activity.side === 'long' ? 'text-green-400' : 'text-red-400';
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">${icon}</span>
+                        <div>
+                            <p class="font-semibold ${sideColor} text-lg">
+                                Opened ${activity.side.toUpperCase()} on ${activity.pair}
+                            </p>
+                            <div class="text-xs text-gray-400 mt-1 space-y-1">
+                                <div>Entry: <span class="text-white">$${activity.entry_price.toFixed(2)}</span> | Size: <span class="text-white">${activity.size.toFixed(4)}</span></div>
+                                <div>TP: <span class="text-green-400">$${activity.take_profit.toFixed(2)}</span> | SL: <span class="text-red-400">$${activity.stop_loss.toFixed(2)}</span> | Margin: <span class="text-yellow-400">$${activity.margin.toFixed(2)}</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Position Closed
+    if (activity.action_type === 'position_closed') {
+        const pnlColor = activity.pnl >= 0 ? 'text-green-400' : 'text-red-400';
+        const pnlSign = activity.pnl >= 0 ? '+' : '';
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">${icon}</span>
+                        <div>
+                            <p class="font-semibold ${pnlColor} text-lg">
+                                Closed ${activity.side.toUpperCase()} on ${activity.pair}
+                            </p>
+                            <div class="text-xs text-gray-400 mt-1">
+                                <div>P&L: <span class="${pnlColor} font-bold">${pnlSign}$${activity.pnl.toFixed(2)} (${pnlSign}${activity.pnl_percent.toFixed(2)}%)</span></div>
+                                <div class="text-gray-500 mt-1">Reason: ${activity.reason}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Position Decision
+    if (activity.action_type === 'position_decision') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-gray-300">${activity.pair}: ${activity.decision}</p>
+                            <p class="text-xs text-gray-500">${activity.reason}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Analyzing Pair
+    if (activity.action_type === 'analyzing_pair') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <p class="text-sm text-gray-300">Analyzing <span class="font-semibold text-blue-400">${activity.pair}</span> (${activity.coin})</p>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Risk Check
+    if (activity.action_type === 'risk_check') {
+        const statusColor = activity.status === 'passed' ? 'text-green-400' : 'text-yellow-400';
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium ${statusColor}">${activity.check_type}</p>
+                            <p class="text-xs text-gray-500">${activity.details}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Error
+    if (activity.action_type === 'error') {
+        return `
+            <div class="bg-red-900 bg-opacity-20 rounded-lg p-3 border border-red-700">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-semibold text-red-400">{activity.error_type}</p>
+                            <p class="text-xs text-gray-300 mt-1">${activity.message}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Generic fallback
+    return `
+        <div class="bg-gray-700 rounded-lg p-3 border border-gray-600">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <span class="text-xl">${icon}</span>
+                    <p class="text-sm text-gray-300">${activity.action_type}</p>
+                </div>
+                <span class="text-xs text-gray-500">${time}</span>
+            </div>
+        </div>
+    `;
+}
+
+// Filter activity by type
+function filterActivity(type) {
+    currentActivityFilter = type;
+
+    // Update button styles
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600', 'text-white');
+        btn.classList.add('bg-gray-700', 'text-gray-300');
+    });
+
+    const activeBtn = document.getElementById(`filter-${type}`);
+    if (activeBtn) {
+        activeBtn.classList.remove('bg-gray-700', 'text-gray-300');
+        activeBtn.classList.add('bg-blue-600', 'text-white');
+    }
+
+    // Fetch filtered activities
+    fetchBotActivity();
+}
+
+// Clear activity feed
+function clearActivityFeed() {
+    if (confirm('Clear all activity feed data? This cannot be undone.')) {
+        const feed = document.getElementById('activity-feed');
+        feed.innerHTML = `
+            <div class="text-center text-gray-400 py-8">
+                <p>Activity feed cleared</p>
+                <p class="text-xs text-gray-500 mt-2">New activities will appear here</p>
+            </div>
+        `;
+    }
+}
+
 // Initial data load on page ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Dashboard loaded - fetching initial data...');
     refreshData();
 });
 
-// Auto-refresh every 5 seconds
-setInterval(refreshData, 5000);
+// Auto-refresh prices every 1 second (for real-time price updates)
+setInterval(function() {
+    fetchPrices();  // Update instrument prices every second
+}, 1000);
+
+// Auto-refresh all other data every 5 seconds
+setInterval(function() {
+    fetchStatus();
+    fetchBotStatus();
+    fetchBotActivity();
+    fetchSignals();
+    fetchLiquidity();
+    fetchPositions();
+    fetchAllChartData();
+    fetchPnLStats();
+    fetchRecentTrades();
+}, 5000);
+
+// ============================================================================
+// STRATEGY MANAGEMENT FUNCTIONS
+// ============================================================================
+
+async function fetchActiveStrategy() {
+    try {
+        const response = await fetch('/api/strategies/active');
+        const data = await response.json();
+
+        if (data.success) {
+            const strategy = data.active_strategy;
+            const systemEnabled = data.strategy_system_enabled;
+
+            // Update strategy system status
+            const statusText = document.getElementById('strategy-system-text');
+            if (systemEnabled && strategy) {
+                statusText.textContent = 'Enabled';
+                statusText.className = 'text-xs font-semibold text-green-400';
+            } else {
+                statusText.textContent = 'Legacy Mode';
+                statusText.className = 'text-xs font-semibold text-gray-400';
+            }
+
+            // Update active strategy info
+            if (strategy) {
+                document.getElementById('active-strategy-name').textContent = strategy.name;
+                document.getElementById('active-strategy-description').textContent = strategy.description;
+                document.getElementById('strategy-version').textContent = strategy.version;
+                document.getElementById('strategy-timeframes').textContent = strategy.required_timeframes.join(', ');
+                document.getElementById('strategy-indicators').textContent = strategy.required_indicators.slice(0, 5).join(', ');
+
+                // Set selector value
+                const selector = document.getElementById('strategy-selector');
+                if (selector && strategy.id) {
+                    selector.value = strategy.id;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching active strategy:', error);
+    }
+}
+
+async function changeStrategy() {
+    const selector = document.getElementById('strategy-selector');
+    const strategyId = selector.value;
+
+    if (!confirm(`Change trading strategy to: ${selector.options[selector.selectedIndex].text}?\n\nThis will restart the bot analysis cycle.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/strategies/set', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                strategy_id: strategyId
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`✅ Strategy changed to: ${result.active_strategy.name}\n\nThe bot will use this strategy for all future analysis.`);
+            fetchActiveStrategy();
+        } else {
+            alert(`❌ Error: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('Error changing strategy:', error);
+        alert('❌ Failed to change strategy. Check console for details.');
+    }
+}
 
 // Wait for Chart.js library to load before initializing charts
 window.addEventListener('load', function () {
@@ -906,4 +1265,7 @@ window.addEventListener('load', function () {
             console.error('Chart.js failed to load. Please check your internet connection.');
         }
     }, 100);
+
+    // Fetch strategy info on page load
+    fetchActiveStrategy();
 });

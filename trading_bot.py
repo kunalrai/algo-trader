@@ -15,6 +15,7 @@ from order_manager import OrderManager
 from position_manager import PositionManager
 from wallet_manager import WalletManager
 from bot_status import get_bot_status_tracker
+from activity_log import get_activity_log
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,9 @@ class TradingBot:
 
         # Bot status tracker (shared with dashboard)
         self.status_tracker = get_bot_status_tracker()
+
+        # Activity log (detailed action tracking)
+        self.activity_log = get_activity_log()
 
         logger.info("Trading bot initialized successfully")
 
@@ -327,6 +331,13 @@ class TradingBot:
             logger.info(f"Scanning {len(self.trading_pairs)} pairs for signals...")
 
             for coin_name, pair in self.trading_pairs.items():
+                # Log that we're analyzing this pair
+                self.activity_log.log_action('analyzing_pair', {
+                    'pair': pair,
+                    'coin': coin_name,
+                    'status': 'checking_position'
+                })
+
                 # Skip if already have position for this pair
                 has_position = False
                 if self.trading_params.get('dry_run') and self.order_manager.simulated_wallet:
@@ -336,16 +347,29 @@ class TradingBot:
 
                 if has_position:
                     logger.debug(f"Skipping {pair}, already have open position")
+                    self.activity_log.log_position_decision(
+                        pair, 'skip', 'Already have open position for this pair'
+                    )
                     continue
 
                 # Generate signal
                 signal = self.signal_generator.generate_signal(pair, self.timeframes)
 
                 if signal:
+                    # Log the signal analysis
+                    reasons = signal.get('reasons', [])
+                    self.activity_log.log_signal_analysis(
+                        pair,
+                        signal.get('action', 'flat'),
+                        signal.get('strength', 0),
+                        reasons
+                    )
+
                     self._evaluate_signal(signal)
 
         except Exception as e:
             logger.error(f"Error scanning for signals: {e}")
+            self.activity_log.log_error('scan_error', str(e))
 
     def _evaluate_signal(self, signal: Dict):
         """

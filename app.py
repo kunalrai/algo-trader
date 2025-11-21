@@ -17,6 +17,8 @@ from indicators import TechnicalIndicators
 from market_depth import MarketDepthAnalyzer
 from simulated_wallet import SimulatedWallet
 from bot_status import get_bot_status_tracker
+from activity_log import get_activity_log
+from strategies.strategy_manager import get_strategy_manager
 import json
 import os
 
@@ -590,6 +592,21 @@ def get_bot_status():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/bot/activity')
+def get_bot_activity():
+    """Get recent bot activity feed"""
+    try:
+        activity_log = get_activity_log()
+        limit = int(request.args.get('limit', 50))
+        filter_type = request.args.get('type', None)
+
+        activities = activity_log.get_recent_activities(limit=limit, filter_type=filter_type)
+        return jsonify(activities)
+    except Exception as e:
+        logger.error(f"Error getting bot activity: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/wallet/history')
 def get_wallet_history():
     """Get wallet balance history over time (for chart)"""
@@ -693,7 +710,114 @@ def get_chart_data(symbol):
         return jsonify({'error': str(e)}), 500
 
 
+# ============================================================================
+# STRATEGY MANAGEMENT ENDPOINTS
+# ============================================================================
+
+@app.route('/api/strategies/list')
+def list_strategies():
+    """Get list of all available strategies"""
+    try:
+        strategy_manager = get_strategy_manager()
+        strategies = strategy_manager.list_strategies()
+        return jsonify({
+            'success': True,
+            'strategies': strategies,
+            'strategy_system_enabled': config.STRATEGY_CONFIG.get('enabled', False)
+        })
+    except Exception as e:
+        logger.error(f"Error listing strategies: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/strategies/active')
+def get_active_strategy():
+    """Get currently active strategy information"""
+    try:
+        strategy_manager = get_strategy_manager()
+        active_info = strategy_manager.get_active_strategy_info()
+
+        return jsonify({
+            'success': True,
+            'active_strategy': active_info,
+            'strategy_system_enabled': config.STRATEGY_CONFIG.get('enabled', False),
+            'configured_strategy': config.STRATEGY_CONFIG.get('active_strategy', 'combined')
+        })
+    except Exception as e:
+        logger.error(f"Error getting active strategy: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/strategies/set', methods=['POST'])
+def set_active_strategy():
+    """Set the active trading strategy"""
+    try:
+        data = request.get_json()
+        strategy_id = data.get('strategy_id')
+
+        if not strategy_id:
+            return jsonify({'success': False, 'error': 'strategy_id required'}), 400
+
+        strategy_manager = get_strategy_manager()
+
+        # Get custom params if provided, otherwise use config
+        params = data.get('params')
+        if not params and strategy_id in config.STRATEGY_CONFIG.get('strategy_params', {}):
+            params = config.STRATEGY_CONFIG['strategy_params'][strategy_id]
+
+        success = strategy_manager.set_active_strategy(strategy_id, params)
+
+        if success:
+            # Update config
+            config.STRATEGY_CONFIG['active_strategy'] = strategy_id
+            active_info = strategy_manager.get_active_strategy_info()
+
+            return jsonify({
+                'success': True,
+                'message': f'Active strategy set to: {strategy_id}',
+                'active_strategy': active_info
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Strategy {strategy_id} not found'
+            }), 404
+
+    except Exception as e:
+        logger.error(f"Error setting active strategy: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/strategies/toggle', methods=['POST'])
+def toggle_strategy_system():
+    """Toggle strategy system on/off"""
+    try:
+        data = request.get_json()
+        enabled = data.get('enabled', not config.STRATEGY_CONFIG.get('enabled', False))
+
+        config.STRATEGY_CONFIG['enabled'] = enabled
+
+        return jsonify({
+            'success': True,
+            'enabled': enabled,
+            'message': f"Strategy system {'enabled' if enabled else 'disabled'}"
+        })
+    except Exception as e:
+        logger.error(f"Error toggling strategy system: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     logger.info("Starting Trading Bot Dashboard...")
     logger.info(f"Trading Mode: {'DRY RUN' if config.TRADING_PARAMS['dry_run'] else 'LIVE'}")
+
+    # Initialize strategy system if enabled
+    if config.STRATEGY_CONFIG.get('enabled', False):
+        logger.info("Strategy system enabled")
+        strategy_manager = get_strategy_manager()
+        active_strategy_id = config.STRATEGY_CONFIG.get('active_strategy', 'combined')
+        params = config.STRATEGY_CONFIG.get('strategy_params', {}).get(active_strategy_id)
+        strategy_manager.set_active_strategy(active_strategy_id, params)
+        logger.info(f"Active strategy: {active_strategy_id}")
+
     app.run(debug=True, host='0.0.0.0', port=5000)
