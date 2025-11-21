@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+
+{% block title %}Strategies - Trading Bot Dashboard{% endblock %}
+{% block page_title %}Trading Strategies{% endblock %}
+
+{% block content %}
+<!-- Strategy System Status -->
+<div class="bg-gradient-to-r from-purple-900 to-pink-900 rounded-lg shadow-lg p-6 border border-purple-600 mb-8">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+            Strategy System
+        </h2>
+        <div class="flex gap-2 items-center">
+            <span class="text-xs text-gray-400">System Status:</span>
+            <div id="strategy-system-status" class="bg-gray-800 px-3 py-1 rounded-full">
+                <span class="text-xs font-semibold text-gray-400" id="strategy-system-text">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Active Strategy Info -->
+        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
+            <p class="text-xs text-gray-400 uppercase mb-2">Active Strategy</p>
+            <p class="text-xl font-bold text-white mb-2" id="active-strategy-name">Loading...</p>
+            <p class="text-sm text-gray-300 mb-3" id="active-strategy-description">
+                Loading strategy information...
+            </p>
+            <div class="text-xs text-gray-400">
+                <div class="mb-1">Version: <span id="strategy-version" class="text-gray-300">--</span></div>
+                <div class="mb-1">Timeframes: <span id="strategy-timeframes" class="text-gray-300">--</span></div>
+                <div>Indicators: <span id="strategy-indicators" class="text-gray-300">--</span></div>
+            </div>
+        </div>
+
+        <!-- Strategy Selector -->
+        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
+            <p class="text-xs text-gray-400 uppercase mb-3">Change Strategy</p>
+            <select id="strategy-selector" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 mb-3 focus:outline-none focus:border-purple-500">
+                <option value="combined">Combined Multi-Indicator</option>
+                <option value="ema_crossover">EMA Crossover</option>
+                <option value="macd">MACD Strategy</option>
+                <option value="rsi">RSI Mean Reversion</option>
+            </select>
+            <button onclick="changeStrategy()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Apply Strategy
+            </button>
+            <div class="mt-3 text-xs text-gray-400 bg-gray-700 bg-opacity-50 rounded p-2">
+                ⚠️ Changing strategy will restart the bot analysis cycle
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Available Strategies -->
+<div class="mb-8">
+    <h2 class="text-2xl font-bold text-white mb-6">Available Strategies</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Combined Multi-Indicator -->
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-white">Combined Multi-Indicator</h3>
+                    <span class="text-xs text-purple-400 font-semibold">DEFAULT</span>
+                </div>
+                <div class="bg-purple-500 bg-opacity-20 rounded-lg p-2">
+                    <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-sm text-gray-300 mb-4">
+                Combines EMA, MACD, and RSI signals across multiple timeframes for comprehensive market analysis.
+            </p>
+            <div class="space-y-2 text-xs text-gray-400">
+                <div class="flex justify-between">
+                    <span>Timeframes:</span>
+                    <span class="text-white">5m, 1h, 4h</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Indicators:</span>
+                    <span class="text-white">EMA, MACD, RSI, Bollinger</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Risk Level:</span>
+                    <span class="text-yellow-400">Medium</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- EMA Crossover -->
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-white">EMA Crossover</h3>
+                    <span class="text-xs text-green-400 font-semibold">TREND FOLLOWING</span>
+                </div>
+                <div class="bg-green-500 bg-opacity-20 rounded-lg p-2">
+                    <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-sm text-gray-300 mb-4">
+                Classic trend-following strategy using fast and slow EMA crossovers with volume confirmation.
+            </p>
+            <div class="space-y-2 text-xs text-gray-400">
+                <div class="flex justify-between">
+                    <span>Timeframes:</span>
+                    <span class="text-white">5m, 15m, 1h</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Indicators:</span>
+                    <span class="text-white">EMA(9, 21), Volume</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Risk Level:</span>
+                    <span class="text-green-400">Low</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- MACD Strategy -->
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-white">MACD Strategy</h3>
+                    <span class="text-xs text-blue-400 font-semibold">MOMENTUM</span>
+                </div>
+                <div class="bg-blue-500 bg-opacity-20 rounded-lg p-2">
+                    <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-sm text-gray-300 mb-4">
+                Momentum-based strategy using MACD crossovers and histogram divergence for entry signals.
+            </p>
+            <div class="space-y-2 text-xs text-gray-400">
+                <div class="flex justify-between">
+                    <span>Timeframes:</span>
+                    <span class="text-white">15m, 1h, 4h</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Indicators:</span>
+                    <span class="text-white">MACD, Signal Line</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Risk Level:</span>
+                    <span class="text-yellow-400">Medium</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- RSI Mean Reversion -->
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-white">RSI Mean Reversion</h3>
+                    <span class="text-xs text-red-400 font-semibold">CONTRARIAN</span>
+                </div>
+                <div class="bg-red-500 bg-opacity-20 rounded-lg p-2">
+                    <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-sm text-gray-300 mb-4">
+                Contrarian strategy that identifies oversold/overbought conditions using RSI for mean reversion trades.
+            </p>
+            <div class="space-y-2 text-xs text-gray-400">
+                <div class="flex justify-between">
+                    <span>Timeframes:</span>
+                    <span class="text-white">5m, 15m, 1h</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Indicators:</span>
+                    <span class="text-white">RSI, Bollinger Bands</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Risk Level:</span>
+                    <span class="text-red-400">High</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Strategy Performance Comparison (if available) -->
+<div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+    <h2 class="text-xl font-bold text-white mb-4">Strategy Guidelines</h2>
+    <div class="space-y-4 text-sm text-gray-300">
+        <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div>
+                <p class="font-semibold text-white">Changing Strategies</p>
+                <p>When you change strategies, the bot will restart its analysis cycle and use the new strategy for all future signal generation.</p>
+            </div>
+        </div>
+        <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+            <div>
+                <p class="font-semibold text-white">Existing Positions</p>
+                <p>Open positions are not affected by strategy changes. They will continue to follow their original exit rules.</p>
+            </div>
+        </div>
+        <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <div>
+                <p class="font-semibold text-white">Testing Strategies</p>
+                <p>In DRY RUN mode, you can safely test different strategies without risking real funds. Monitor performance before switching to live trading.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function fetchActiveStrategy() {
+    try {
+        const response = await fetch('/api/strategies/active');
+        const data = await response.json();
+
+        if (data.success) {
+            const strategy = data.active_strategy;
+            const systemEnabled = data.strategy_system_enabled;
+
+            // Update strategy system status
+            const statusText = document.getElementById('strategy-system-text');
+            if (systemEnabled && strategy) {
+                statusText.textContent = 'Enabled';
+                statusText.className = 'text-xs font-semibold text-green-400';
+            } else {
+                statusText.textContent = 'Legacy Mode';
+                statusText.className = 'text-xs font-semibold text-gray-400';
+            }
+
+            // Update active strategy info
+            if (strategy) {
+                document.getElementById('active-strategy-name').textContent = strategy.name;
+                document.getElementById('active-strategy-description').textContent = strategy.description;
+                document.getElementById('strategy-version').textContent = strategy.version;
+                document.getElementById('strategy-timeframes').textContent = strategy.required_timeframes.join(', ');
+                document.getElementById('strategy-indicators').textContent = strategy.required_indicators.slice(0, 5).join(', ');
+
+                // Set selector value
+                const selector = document.getElementById('strategy-selector');
+                if (selector && strategy.id) {
+                    selector.value = strategy.id;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching active strategy:', error);
+    }
+}
+
+async function changeStrategy() {
+    const selector = document.getElementById('strategy-selector');
+    const strategyId = selector.value;
+
+    if (!confirm(`Change trading strategy to: ${selector.options[selector.selectedIndex].text}?\n\nThis will restart the bot analysis cycle.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/strategies/set', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                strategy_id: strategyId
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`✅ Strategy changed to: ${result.active_strategy.name}\n\nThe bot will use this strategy for all future analysis.`);
+            fetchActiveStrategy();
+        } else {
+            alert(`❌ Error: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('Error changing strategy:', error);
+        alert('❌ Failed to change strategy. Check console for details.');
+    }
+}
+
+// Initial load
+fetchActiveStrategy();
+setInterval(fetchActiveStrategy, 5000);
+</script>
+{% endblock %}

@@ -61,8 +61,43 @@ if config.TRADING_PARAMS.get('dry_run', False):
 
 @app.route('/')
 def index():
-    """Render main dashboard"""
-    # Pass trading pairs to template for dynamic chart generation
+    """Render main dashboard - Overview page"""
+    return render_template('overview.html', trading_pairs=config.TRADING_PAIRS)
+
+
+@app.route('/strategies')
+def strategies():
+    """Render strategies page"""
+    return render_template('strategies.html', trading_pairs=config.TRADING_PAIRS)
+
+
+@app.route('/positions')
+def positions():
+    """Render positions page"""
+    return render_template('positions.html', trading_pairs=config.TRADING_PAIRS)
+
+
+@app.route('/performance')
+def performance():
+    """Render performance page"""
+    return render_template('performance.html', trading_pairs=config.TRADING_PAIRS)
+
+
+@app.route('/market')
+def market():
+    """Render market analysis page"""
+    return render_template('market.html', trading_pairs=config.TRADING_PAIRS)
+
+
+@app.route('/activity')
+def activity():
+    """Render activity feed page"""
+    return render_template('activity.html', trading_pairs=config.TRADING_PAIRS)
+
+
+@app.route('/dashboard')
+def dashboard_legacy():
+    """Legacy dashboard route - redirects to overview"""
     return render_template('dashboard.html', trading_pairs=config.TRADING_PAIRS)
 
 

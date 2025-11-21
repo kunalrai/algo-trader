@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}Activity Feed - Trading Bot Dashboard{% endblock %}
+{% block page_title %}Activity Feed{% endblock %}
+
+{% block content %}
+<!-- Bot Status -->
+<div class="bg-gradient-to-r from-indigo-900 to-purple-900 rounded-lg shadow-lg p-6 border border-indigo-600 mb-8">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+            </svg>
+            Bot Status
+        </h2>
+        <div id="bot-running-indicator" class="flex items-center gap-2 bg-gray-800 px-3 py-1 rounded-full">
+            <div class="w-2 h-2 rounded-full bg-gray-500" id="bot-status-dot"></div>
+            <span class="text-xs font-semibold text-gray-400" id="bot-running-text">Stopped</span>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
+            <p class="text-xs text-gray-400 uppercase mb-1">Bot Uptime</p>
+            <p class="text-xl font-bold text-white" id="bot-uptime">0s</p>
+            <p class="text-xs text-gray-500 mt-1">Total Cycles: <span id="total-cycles">0</span></p>
+        </div>
+        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
+            <p class="text-xs text-gray-400 uppercase mb-1">Last Scan</p>
+            <p class="text-xl font-bold text-white" id="last-scan-time">Never</p>
+            <p class="text-xs text-gray-500 mt-1"><span id="seconds-since-scan">--</span>s ago</p>
+        </div>
+        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
+            <p class="text-xs text-gray-400 uppercase mb-1">Next Scan In</p>
+            <p class="text-xl font-bold text-yellow-400" id="next-scan-countdown">--</p>
+            <p class="text-xs text-gray-500 mt-1">Interval: <span id="scan-interval">60</span>s</p>
+        </div>
+        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
+            <p class="text-xs text-gray-400 uppercase mb-1">Pairs Monitored</p>
+            <p class="text-xl font-bold text-white" id="pairs-count">0</p>
+            <p class="text-xs text-gray-500 mt-1" id="pairs-list">--</p>
+        </div>
+    </div>
+
+    <!-- Current Action -->
+    <div class="bg-gray-800 bg-opacity-70 rounded-lg p-4 border border-indigo-500 mt-4">
+        <div class="flex items-start gap-3">
+            <div class="bg-indigo-500 bg-opacity-20 rounded-full p-2 mt-1">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div class="flex-1">
+                <p class="text-sm text-gray-400 mb-1">Current Action:</p>
+                <p class="text-lg font-semibold text-white" id="current-action">Initializing...</p>
+                <p class="text-sm text-gray-300 mt-1" id="action-details">Bot starting up...</p>
+                <p class="text-xs text-gray-500 mt-2">Last decision: <span id="last-decision-time">N/A</span></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity Feed -->
+<div class="bg-gray-800 rounded-lg shadow-lg border border-gray-700">
+    <div class="p-6 border-b border-gray-700">
+        <div class="flex justify-between items-center flex-wrap gap-4">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                Live Activity Feed
+            </h2>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="filterActivity('all')" id="filter-all" class="filter-btn bg-blue-600 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-blue-700 transition">
+                    All
+                </button>
+                <button onclick="filterActivity('signal_analysis')" id="filter-signal_analysis" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
+                    Signals
+                </button>
+                <button onclick="filterActivity('position_opened')" id="filter-position_opened" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
+                    Positions
+                </button>
+                <button onclick="filterActivity('position_closed')" id="filter-position_closed" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
+                    Closed
+                </button>
+                <button onclick="filterActivity('risk_check')" id="filter-risk_check" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
+                    Risk
+                </button>
+                <button onclick="clearActivityFeed()" class="bg-red-600 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-red-700 transition">
+                    Clear
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="p-6">
+        <div id="activity-feed" class="space-y-2 max-h-[600px] overflow-y-auto">
+            <div class="text-center text-gray-400 py-8">
+                <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <p>Waiting for bot activity...</p>
+                <p class="text-xs text-gray-500 mt-2">Activity feed will update every 5 seconds</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentActivityFilter = 'all';
+
+// Fetch bot runtime status
+async function fetchBotStatus() {
+    try {
+        const response = await fetch('/api/bot/status');
+        const status = await response.json();
+
+        const isRunning = status.bot_running;
+        const statusDot = document.getElementById('bot-status-dot');
+        const statusText = document.getElementById('bot-running-text');
+
+        if (isRunning) {
+            statusDot.className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
+            statusText.textContent = 'Running';
+            statusText.className = 'text-xs font-semibold text-green-400';
+        } else {
+            statusDot.className = 'w-2 h-2 rounded-full bg-gray-500';
+            statusText.textContent = 'Stopped';
+            statusText.className = 'text-xs font-semibold text-gray-400';
+        }
+
+        document.getElementById('bot-uptime').textContent = status.uptime_formatted || '0s';
+        document.getElementById('total-cycles').textContent = status.total_cycles || 0;
+        document.getElementById('last-scan-time').textContent = status.last_cycle_formatted || 'Never';
+        document.getElementById('seconds-since-scan').textContent = status.seconds_since_last_cycle || '--';
+        document.getElementById('next-scan-countdown').textContent = status.next_scan_countdown || '--';
+        document.getElementById('scan-interval').textContent = status.scan_interval || 60;
+
+        const pairs = status.pairs_monitored || [];
+        document.getElementById('pairs-count').textContent = pairs.length;
+        document.getElementById('pairs-list').textContent = pairs.join(', ') || '--';
+
+        document.getElementById('current-action').textContent = status.current_action || 'Stopped';
+        document.getElementById('action-details').textContent = status.action_details || 'Bot not running';
+        document.getElementById('last-decision-time').textContent = status.last_decision_formatted || 'N/A';
+
+    } catch (error) {
+        console.error('Error fetching bot status:', error);
+    }
+}
+
+// Fetch bot activity feed
+async function fetchBotActivity() {
+    try {
+        const limit = 100;
+        const url = currentActivityFilter === 'all'
+            ? `/api/bot/activity?limit=${limit}`
+            : `/api/bot/activity?limit=${limit}&type=${currentActivityFilter}`;
+
+        const response = await fetch(url);
+        const activities = await response.json();
+
+        renderActivityFeed(activities);
+    } catch (error) {
+        console.error('Error fetching bot activity:', error);
+    }
+}
+
+// Render activity feed
+function renderActivityFeed(activities) {
+    const feed = document.getElementById('activity-feed');
+
+    if (!activities || activities.length === 0) {
+        feed.innerHTML = `
+            <div class="text-center text-gray-400 py-8">
+                <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <p>No activity yet</p>
+                <p class="text-xs text-gray-500 mt-2">Waiting for bot to start...</p>
+            </div>
+        `;
+        return;
+    }
+
+    feed.innerHTML = activities.map(activity => renderActivityItem(activity)).join('');
+    feed.scrollTop = 0;
+}
+
+// Render individual activity item
+function renderActivityItem(activity) {
+    const icons = {
+        'analyzing_pair': '🔍',
+        'market_scan': '📊',
+        'signal_analysis': '📈',
+        'position_decision': '💭',
+        'position_opened': '✅',
+        'position_closed': '🔒',
+        'risk_check': '⚠️',
+        'error': '❌'
+    };
+
+    const icon = icons[activity.action_type] || '📌';
+    const time = activity.time_formatted;
+
+    if (activity.action_type === 'signal_analysis') {
+        const signalColor = activity.signal === 'long' ? 'text-green-400' :
+                           activity.signal === 'short' ? 'text-red-400' : 'text-gray-400';
+        const strengthPercent = (activity.strength * 100).toFixed(0);
+        const strengthColor = activity.strength >= 0.7 ? 'text-green-400' : 'text-yellow-400';
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">${icon}</span>
+                        <div>
+                            <p class="font-semibold ${signalColor} text-lg">
+                                ${activity.pair} - ${activity.signal.toUpperCase()}
+                            </p>
+                            <p class="text-xs text-gray-400">
+                                Strength: <span class="${strengthColor}">${strengthPercent}%</span>
+                                ${activity.strength >= activity.threshold ? ' (✓ Above threshold)' : ' (✗ Below threshold)'}
+                            </p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${time}</span>
+                </div>
+                <div class="ml-11 text-xs text-gray-300 space-y-1">
+                    ${activity.reasons ? activity.reasons.map(r => `<div class="flex items-start gap-2"><span class="text-blue-400">•</span><span>${r}</span></div>`).join('') : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    if (activity.action_type === 'position_opened') {
+        const sideColor = activity.side === 'long' ? 'text-green-400' : 'text-red-400';
+        return `
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">${icon}</span>
+                        <div>
+                            <p class="font-semibold ${sideColor} text-lg">
+                                Opened ${activity.side.toUpperCase()} on ${activity.pair}
+                            </p>
+                            <div class="text-xs text-gray-400 mt-1 space-y-1">
+                                <div>Entry: <span class="text-white">$${activity.entry_price.toFixed(2)}</span> | Size: <span class="text-white">${activity.size.toFixed(4)}</span></div>
+                                <div>TP: <span class="text-green-400">$${activity.take_profit.toFixed(2)}</span> | SL: <span class="text-red-400">$${activity.stop_loss.toFixed(2)}</span> | Margin: <span class="text-yellow-400">$${activity.margin.toFixed(2)}</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    if (activity.action_type === 'position_closed') {
+        const pnlColor = activity.pnl >= 0 ? 'text-green-400' : 'text-red-400';
+        const pnlSign = activity.pnl >= 0 ? '+' : '';
+        return `
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">${icon}</span>
+                        <div>
+                            <p class="font-semibold ${pnlColor} text-lg">
+                                Closed ${activity.side.toUpperCase()} on ${activity.pair}
+                            </p>
+                            <div class="text-xs text-gray-400 mt-1">
+                                <div>P&L: <span class="${pnlColor} font-bold">${pnlSign}$${activity.pnl.toFixed(2)} (${pnlSign}${activity.pnl_percent.toFixed(2)}%)</span></div>
+                                <div class="text-gray-500 mt-1">Reason: ${activity.reason}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    if (activity.action_type === 'position_decision') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-gray-300">${activity.pair}: ${activity.decision}</p>
+                            <p class="text-xs text-gray-500">${activity.reason}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    if (activity.action_type === 'analyzing_pair') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <p class="text-sm text-gray-300">Analyzing <span class="font-semibold text-blue-400">${activity.pair}</span> (${activity.coin})</p>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    if (activity.action_type === 'risk_check') {
+        const statusColor = activity.status === 'passed' ? 'text-green-400' : 'text-yellow-400';
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium ${statusColor}">${activity.check_type}</p>
+                            <p class="text-xs text-gray-500">${activity.details}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    if (activity.action_type === 'error') {
+        return `
+            <div class="bg-red-900 bg-opacity-20 rounded-lg p-3 border border-red-700">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-semibold text-red-400">${activity.error_type || 'Error'}</p>
+                            <p class="text-xs text-gray-300 mt-1">${activity.message}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="bg-gray-700 rounded-lg p-3 border border-gray-600">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <span class="text-xl">${icon}</span>
+                    <p class="text-sm text-gray-300">${activity.action_type}</p>
+                </div>
+                <span class="text-xs text-gray-500">${time}</span>
+            </div>
+        </div>
+    `;
+}
+
+// Filter activity by type
+function filterActivity(type) {
+    currentActivityFilter = type;
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600', 'text-white');
+        btn.classList.add('bg-gray-700', 'text-gray-300');
+    });
+
+    const activeBtn = document.getElementById(`filter-${type}`);
+    if (activeBtn) {
+        activeBtn.classList.remove('bg-gray-700', 'text-gray-300');
+        activeBtn.classList.add('bg-blue-600', 'text-white');
+    }
+
+    fetchBotActivity();
+}
+
+// Clear activity feed
+function clearActivityFeed() {
+    if (confirm('Clear all activity feed data? This cannot be undone.')) {
+        const feed = document.getElementById('activity-feed');
+        feed.innerHTML = `
+            <div class="text-center text-gray-400 py-8">
+                <p>Activity feed cleared</p>
+                <p class="text-xs text-gray-500 mt-2">New activities will appear here</p>
+            </div>
+        `;
+    }
+}
+
+// Initial load
+fetchBotStatus();
+fetchBotActivity();
+setInterval(fetchBotStatus, 5000);
+setInterval(fetchBotActivity, 5000);
+</script>
+{% endblock %}

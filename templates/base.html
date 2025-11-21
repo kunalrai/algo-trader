@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Trading Bot Dashboard{% endblock %}</title>
+
+    <!-- TailwindCSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+    <!-- Custom styles -->
+    <style>
+        .pulse-green {
+            animation: pulse-green 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse-green {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .5;
+            }
+        }
+
+        .profit {
+            color: #10b981;
+        }
+
+        .loss {
+            color: #ef4444;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        /* Sidebar styling */
+        .sidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .sidebar-link {
+            transition: all 0.2s ease-in-out;
+        }
+
+        .sidebar-link:hover {
+            background-color: rgba(59, 130, 246, 0.1);
+            border-left-color: #3b82f6;
+        }
+
+        .sidebar-link.active {
+            background-color: rgba(59, 130, 246, 0.2);
+            border-left-color: #3b82f6;
+            color: #3b82f6;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar.mobile-hidden {
+                transform: translateX(-100%);
+            }
+        }
+    </style>
+
+    {% block extra_styles %}{% endblock %}
+</head>
+
+<body class="bg-gray-900 text-gray-100">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="sidebar bg-gray-800 w-64 flex-shrink-0 border-r border-gray-700 overflow-y-auto" id="sidebar">
+            <!-- Logo/Brand -->
+            <div class="p-6 border-b border-gray-700">
+                <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                    <span class="text-blue-500 text-2xl">⚡</span>
+                    <span>Trading Bot</span>
+                </h1>
+                <p class="text-xs text-gray-400 mt-1">Multi-Strategy Algo Trader</p>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="p-4 space-y-2">
+                <a href="/" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg border-l-4 border-transparent {% if request.path == '/' %}active{% endif %}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    </svg>
+                    <span class="font-medium">Overview</span>
+                </a>
+
+                <a href="/strategies" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg border-l-4 border-transparent {% if request.path == '/strategies' %}active{% endif %}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    <span class="font-medium">Strategies</span>
+                </a>
+
+                <a href="/positions" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg border-l-4 border-transparent {% if request.path == '/positions' %}active{% endif %}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                    <span class="font-medium">Positions</span>
+                </a>
+
+                <a href="/performance" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg border-l-4 border-transparent {% if request.path == '/performance' %}active{% endif %}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="font-medium">Performance</span>
+                </a>
+
+                <a href="/market" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg border-l-4 border-transparent {% if request.path == '/market' %}active{% endif %}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+                    </svg>
+                    <span class="font-medium">Market Analysis</span>
+                </a>
+
+                <a href="/activity" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg border-l-4 border-transparent {% if request.path == '/activity' %}active{% endif %}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    <span class="font-medium">Activity Feed</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Top Bar -->
+            <header class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+                <!-- Mobile Menu Button -->
+                <button class="md:hidden text-gray-400 hover:text-white" onclick="toggleSidebar()">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+
+                <div class="flex-1 md:flex-initial">
+                    <h2 class="text-2xl font-bold text-white">{% block page_title %}Dashboard{% endblock %}</h2>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <div class="text-sm text-gray-400">
+                        <span id="current-time"></span>
+                    </div>
+                    <div id="top-trading-mode-badge" class="px-3 py-1 rounded-full text-sm font-semibold bg-yellow-500 bg-opacity-20 text-yellow-500">
+                        DRY RUN MODE
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="flex-1 overflow-y-auto bg-gray-900 p-6">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Pass trading pairs from Flask template to JavaScript
+        window.TRADING_PAIRS_CONFIG = {{ trading_pairs | tojson }};
+
+        // Toggle sidebar on mobile
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('mobile-hidden');
+        }
+
+        // Update time
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleTimeString();
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // Update top bar trading mode
+        async function updateTradingMode() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+
+                const topMode = document.getElementById('top-trading-mode-badge');
+
+                if (data.trading_mode === 'DRY RUN') {
+                    topMode.className = 'px-3 py-1 rounded-full text-sm font-semibold bg-yellow-500 bg-opacity-20 text-yellow-500';
+                    topMode.textContent = 'DRY RUN MODE';
+                } else {
+                    topMode.className = 'px-3 py-1 rounded-full text-sm font-semibold bg-green-500 bg-opacity-20 text-green-500';
+                    topMode.textContent = 'LIVE TRADING';
+                }
+            } catch (error) {
+                console.error('Error updating trading mode:', error);
+            }
+        }
+
+        // Update trading mode on page load and every 5 seconds
+        updateTradingMode();
+        setInterval(updateTradingMode, 5000);
+    </script>
+
+    <script src="/static/js/dashboard.js"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
