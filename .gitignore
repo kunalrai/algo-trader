@@ -47,6 +47,11 @@ trading_bot.log*
 data/
 backtest/
 
+# Database files
+*.db
+instance/
+algo_trader.db
+
 # OS
 .DS_Store
 Thumbs.db

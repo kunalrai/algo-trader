@@ -1,7 +1,24 @@
 """
-All-in-One Trading Bot Launcher
-Starts bot and dashboard together with full monitoring
-Multi-user support with authentication
+═══════════════════════════════════════════════════════════════════════════════
+MAIN APPLICATION ENTRY POINT
+═══════════════════════════════════════════════════════════════════════════════
+
+This is the ONLY file you should run to start the trading bot system.
+
+Usage:
+    python start_trading.py
+
+What it does:
+    - Checks all dependencies are installed
+    - Initializes the database
+    - Starts the trading bot
+    - Starts the web dashboard
+    - Opens your browser automatically
+
+DO NOT run app.py, run_bot.py, or any other files directly!
+Always use this file as the main entry point.
+
+═══════════════════════════════════════════════════════════════════════════════
 """
 
 import subprocess
@@ -37,8 +54,13 @@ def print_banner():
     ║                                                               ║
     ║         Professional Multi-User Trading Platform             ║
     ║         Paper Trading & Live Trading Support                 ║
+    ║         ATR-Based Dynamic Stop Loss                          ║
+    ║         User-Specific Trading Pairs                          ║
+    ║         Superadmin Management Dashboard                      ║
     ║                                                               ║
     ╚═══════════════════════════════════════════════════════════════╝
+
+    THIS IS THE MAIN APPLICATION - Always run: python start_trading.py
     """
     print(banner)
 
@@ -147,8 +169,8 @@ def run_dashboard():
     time.sleep(2)  # Wait for bot to initialize
 
     try:
-        # Start Flask app
-        subprocess.run([sys.executable, 'app.py'])
+        # Start Flask app via run_dashboard.py
+        subprocess.run([sys.executable, 'run_dashboard.py'])
     except KeyboardInterrupt:
         logger.info("Dashboard stopped by user")
     except Exception as e:
@@ -178,22 +200,33 @@ def print_instructions():
     print("\n👤 USER FEATURES:")
     print("   ✓ Google OAuth & Email/Password login")
     print("   ✓ Personal profile with trading settings")
+    print("   ✓ Select your own trading pairs (BTC, ETH, SOL, etc.)")
     print("   ✓ Paper Trading (simulated) mode")
     print("   ✓ Live Trading with your own API keys")
     print("   ✓ Encrypted API key storage")
+    print("   ✓ ATR-based dynamic stop loss (adapts to volatility)")
+
+    print("\n👑 SUPERADMIN ACCESS:")
+    print("   Email:    admin@algotrader.com")
+    print("   Password: superadmin123#")
+    print("   Access:   Profile Menu > Admin Dashboard")
 
     print("\n⚙️  WHAT'S HAPPENING:")
     print("   • Bot scans markets every 60 seconds")
-    print("   • Analyzes EMA, MACD, RSI indicators")
+    print("   • Analyzes EMA, MACD, RSI, ATR indicators")
     print("   • Opens positions when signals are strong (≥0.7)")
+    print("   • Dynamic TP/SL based on market volatility (ATR)")
     print("   • Monitors positions with TP/SL")
     print("   • Dashboard updates every 5 seconds")
 
     print("\n📚 FIRST TIME SETUP:")
     print("   1. Open http://localhost:5000")
     print("   2. Register with email or Google")
-    print("   3. Go to Profile to configure trading settings")
-    print("   4. Add CoinDCX API keys for live trading (optional)")
+    print("   3. Go to Profile to configure:")
+    print("      • Select trading pairs you want to trade")
+    print("      • Set risk management parameters")
+    print("      • Add CoinDCX API keys for live trading (optional)")
+    print("   4. Start trading in paper mode or go live!")
 
     print("\n" + "="*70)
     print("\n⏳ System running... Open dashboard to get started\n")
