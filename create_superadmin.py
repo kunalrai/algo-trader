@@ -19,7 +19,7 @@ def create_superadmin():
             existing_admin = User.query.filter_by(email='admin@algotrader.com').first()
 
             if existing_admin:
-                print("⚠️  Superadmin user already exists!")
+                print("[INFO] Superadmin user already exists!")
                 print(f"   Email: {existing_admin.email}")
                 print(f"   Superadmin: {existing_admin.is_superadmin}")
 
@@ -27,7 +27,7 @@ def create_superadmin():
                 if not existing_admin.is_superadmin:
                     existing_admin.is_superadmin = True
                     db.session.commit()
-                    print("✓ Updated existing user to superadmin")
+                    print("[OK] Updated existing user to superadmin")
 
                 return existing_admin
 
@@ -45,14 +45,14 @@ def create_superadmin():
             admin_user.is_verified = True
             db.session.commit()
 
-            print("✓ Superadmin user created successfully!")
+            print("[OK] Superadmin user created successfully!")
             print(f"   Email: admin@algotrader.com")
             print(f"   Password: superadmin123#")
             print(f"   Login at: http://localhost:5000/auth/login")
 
             return admin_user
     except ImportError as e:
-        print(f"❌ Error: {e}")
+        print(f"[ERROR] {e}")
         print("\nPlease install dependencies first:")
         print("   pip install -r requirements.txt")
         print("\nOr run this in Flask shell after starting the app:")
