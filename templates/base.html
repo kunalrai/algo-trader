@@ -275,6 +275,11 @@
                         </button>
                         <div id="profileMenu" class="hidden absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg border border-gray-700 py-1 z-50">
                             <a href="{{ url_for('auth.profile') }}" class="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700">Profile Settings</a>
+                            {% if current_user.is_superadmin %}
+                            <a href="{{ url_for('auth.admin_users') }}" class="block px-4 py-2 text-sm text-red-400 hover:bg-gray-700 font-medium">
+                                Admin Dashboard
+                            </a>
+                            {% endif %}
                             <div class="border-t border-gray-700 my-1"></div>
                             <a href="{{ url_for('auth.logout') }}" class="block px-4 py-2 text-sm text-red-400 hover:bg-gray-700">Sign Out</a>
                         </div>

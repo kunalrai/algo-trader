@@ -56,6 +56,7 @@ class User(UserMixin, db.Model):
     # Status
     is_active = db.Column(db.Boolean, default=True)
     is_verified = db.Column(db.Boolean, default=False)
+    is_superadmin = db.Column(db.Boolean, default=False)
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -64,6 +65,7 @@ class User(UserMixin, db.Model):
 
     # Relationships
     profile = db.relationship('UserProfile', backref='user', uselist=False, cascade='all, delete-orphan')
+    trading_pairs = db.relationship('UserTradingPair', backref='user', cascade='all, delete-orphan')
 
     def set_password(self, password: str):
         """Hash and set the user's password"""
@@ -82,6 +84,26 @@ class User(UserMixin, db.Model):
 
     def __repr__(self):
         return f'<User {self.email}>'
+
+
+class UserTradingPair(db.Model):
+    """User's selected trading pairs/instruments"""
+    __tablename__ = 'user_trading_pairs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    symbol = db.Column(db.String(20), nullable=False)  # e.g., "BTCUSDT"
+    display_name = db.Column(db.String(50), nullable=False)  # e.g., "BTC"
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Unique constraint: one user can't have duplicate symbols
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'symbol', name='unique_user_symbol'),
+    )
+
+    def __repr__(self):
+        return f'<UserTradingPair {self.display_name} ({self.symbol})>'
 
 
 class UserProfile(db.Model):
@@ -304,6 +326,20 @@ def create_user_with_profile(email: str, password: str = None, name: str = None,
     # Create simulated wallet
     wallet = UserSimulatedWallet(user_id=user.id)
     db.session.add(wallet)
+
+    # Add default trading pairs
+    default_pairs = [
+        ('BTCUSDT', 'BTC'),
+        ('ETHUSDT', 'ETH'),
+        ('SOLUSDT', 'SOL'),
+    ]
+    for symbol, display_name in default_pairs:
+        trading_pair = UserTradingPair(
+            user_id=user.id,
+            symbol=symbol,
+            display_name=display_name
+        )
+        db.session.add(trading_pair)
 
     db.session.commit()
     return user

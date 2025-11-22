@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - Admin{% endblock %}
+{% block page_title %}User Management{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-bold text-white">Superadmin Dashboard</h2>
+            <p class="text-gray-400">Manage all users and their accounts</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="px-3 py-1 bg-red-500 bg-opacity-20 border border-red-500 rounded text-red-400 text-sm font-medium">
+                SUPERADMIN
+            </span>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <div class="text-gray-400 text-sm mb-1">Total Users</div>
+            <div class="text-2xl font-bold text-white">{{ users|length }}</div>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <div class="text-gray-400 text-sm mb-1">Active Users</div>
+            <div class="text-2xl font-bold text-green-400">{{ users|selectattr('is_active')|list|length }}</div>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <div class="text-gray-400 text-sm mb-1">Live Trading</div>
+            <div class="text-2xl font-bold text-blue-400">{{ users|selectattr('trading_mode', 'equalto', 'live')|list|length }}</div>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <div class="text-gray-400 text-sm mb-1">With API Keys</div>
+            <div class="text-2xl font-bold text-purple-400">{{ users|selectattr('has_api_keys')|list|length }}</div>
+        </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <div class="p-6 border-b border-gray-700">
+            <h3 class="text-lg font-bold text-white">All Users</h3>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-750">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Trading</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Created</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Last Login</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700">
+                    {% for user in users %}
+                    <tr class="hover:bg-gray-750 transition" data-user-id="{{ user.id }}">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div>
+                                    <div class="text-sm font-medium text-white flex items-center gap-2">
+                                        {{ user.name }}
+                                        {% if user.is_superadmin %}
+                                        <span class="px-2 py-0.5 bg-red-500 bg-opacity-20 border border-red-500 rounded text-red-400 text-xs">ADMIN</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-sm text-gray-400">{{ user.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 text-xs rounded {% if user.is_active %}bg-green-500 bg-opacity-20 text-green-400{% else %}bg-red-500 bg-opacity-20 text-red-400{% endif %}">
+                                {% if user.is_active %}Active{% else %}Inactive{% endif %}
+                            </span>
+                            {% if user.is_verified %}
+                            <span class="px-2 py-1 text-xs rounded bg-blue-500 bg-opacity-20 text-blue-400 ml-1">Verified</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm">
+                                <span class="px-2 py-1 text-xs rounded {% if user.trading_mode == 'live' %}bg-orange-500 bg-opacity-20 text-orange-400{% else %}bg-gray-600 text-gray-300{% endif %}">
+                                    {{ user.trading_mode|upper }}
+                                </span>
+                                {% if user.has_api_keys %}
+                                <svg class="w-4 h-4 text-green-400 inline ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                                </svg>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            {{ user.created_at }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            {{ user.last_login }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div class="flex items-center gap-2">
+                                {% if not user.is_superadmin or user.id == current_user.id %}
+                                <button onclick="toggleUserActive({{ user.id }})" class="text-blue-400 hover:text-blue-300">
+                                    {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
+                                </button>
+                                {% endif %}
+                                {% if not user.is_superadmin and user.id != current_user.id %}
+                                <button onclick="deleteUser({{ user.id }}, '{{ user.email }}')" class="text-red-400 hover:text-red-300">
+                                    Delete
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+async function toggleUserActive(userId) {
+    try {
+        const response = await fetch(`/auth/admin/users/${userId}/toggle-active`, {
+            method: 'POST',
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.message || 'Failed to toggle user status');
+        }
+    } catch (error) {
+        console.error('Error toggling user status:', error);
+        alert('Failed to toggle user status');
+    }
+}
+
+async function deleteUser(userId, email) {
+    if (!confirm(`Are you sure you want to delete user ${email}? This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/auth/admin/users/${userId}/delete`, {
+            method: 'DELETE',
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert(data.message || 'Failed to delete user');
+        }
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        alert('Failed to delete user');
+    }
+}
+</script>
+{% endblock %}

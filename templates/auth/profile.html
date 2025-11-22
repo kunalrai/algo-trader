@@ -190,6 +190,75 @@
         </form>
     </div>
 
+    <!-- Trading Instruments -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+            Trading Instruments
+        </h3>
+
+        <p class="text-gray-400 mb-4">
+            Select which cryptocurrency pairs you want to trade. The bot will only scan and trade these selected instruments.
+        </p>
+
+        <!-- Current Trading Pairs -->
+        <div class="mb-4">
+            <h4 class="text-sm font-medium text-gray-300 mb-3">Active Instruments ({{ trading_pairs|length }})</h4>
+            <div class="space-y-2" id="trading-pairs-list">
+                {% if trading_pairs %}
+                    {% for pair in trading_pairs %}
+                    <div class="flex items-center justify-between p-3 bg-gray-700 rounded-lg" data-pair-id="{{ pair.id }}">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white text-sm">
+                                {{ pair.display_name[:3] }}
+                            </div>
+                            <div>
+                                <div class="text-white font-medium">{{ pair.display_name }}</div>
+                                <div class="text-sm text-gray-400">{{ pair.symbol }}</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="togglePair({{ pair.id }})"
+                                class="px-3 py-1 text-sm rounded {% if pair.is_active %}bg-green-600 hover:bg-green-700{% else %}bg-gray-600 hover:bg-gray-500{% endif %} text-white transition">
+                                {% if pair.is_active %}Active{% else %}Inactive{% endif %}
+                            </button>
+                            <button onclick="removePair({{ pair.id }}, '{{ pair.display_name }}')"
+                                class="p-2 text-red-400 hover:text-red-300 hover:bg-red-500 hover:bg-opacity-20 rounded transition">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-gray-500 text-center py-4">No trading instruments added yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Add New Trading Pair -->
+        <div class="border-t border-gray-700 pt-4">
+            <h4 class="text-sm font-medium text-gray-300 mb-3">Add New Instrument</h4>
+            <div class="flex gap-2 flex-wrap">
+                {% for available in available_pairs %}
+                    {% set already_added = trading_pairs|selectattr('symbol', 'equalto', available.symbol)|list|length > 0 %}
+                    {% if not already_added %}
+                    <button onclick="addPair('{{ available.symbol }}', '{{ available.name }}')"
+                        class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition text-sm flex items-center gap-2">
+                        <span class="font-medium">{{ available.name }}</span>
+                        <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                    </button>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
     <!-- Reset Wallet -->
     <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
         <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -264,4 +333,75 @@
         </a>
     </div>
 </div>
+
+<script>
+// Trading Pairs Management
+async function addPair(symbol, displayName) {
+    try {
+        const response = await fetch('/auth/trading-pairs/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ symbol, display_name: displayName })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Reload the page to show updated list
+            window.location.reload();
+        } else {
+            alert(data.message || 'Failed to add trading pair');
+        }
+    } catch (error) {
+        console.error('Error adding trading pair:', error);
+        alert('Failed to add trading pair');
+    }
+}
+
+async function removePair(pairId, displayName) {
+    if (!confirm(`Remove ${displayName} from your trading instruments?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/auth/trading-pairs/remove/${pairId}`, {
+            method: 'DELETE',
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Reload the page to show updated list
+            window.location.reload();
+        } else {
+            alert(data.message || 'Failed to remove trading pair');
+        }
+    } catch (error) {
+        console.error('Error removing trading pair:', error);
+        alert('Failed to remove trading pair');
+    }
+}
+
+async function togglePair(pairId) {
+    try {
+        const response = await fetch(`/auth/trading-pairs/toggle/${pairId}`, {
+            method: 'POST',
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Reload the page to show updated status
+            window.location.reload();
+        } else {
+            alert(data.message || 'Failed to toggle trading pair');
+        }
+    } catch (error) {
+        console.error('Error toggling trading pair:', error);
+        alert('Failed to toggle trading pair');
+    }
+}
+</script>
 {% endblock %}
