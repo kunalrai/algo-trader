@@ -158,7 +158,7 @@ def google_login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
-    redirect_uri = url_for('auth.google_callback', _external=True)
+    redirect_uri = url_for('auth.google_callback', _external=True, _scheme='https')
     return oauth.google.authorize_redirect(redirect_uri)
 
 
