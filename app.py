@@ -20,7 +20,7 @@ from simulated_wallet import SimulatedWallet
 from bot_status import get_bot_status_tracker
 from activity_log import get_activity_log
 from strategies.strategy_manager import get_strategy_manager
-from models import db, init_db, User, UserProfile
+from models import db, init_db, User, UserProfile, UserTradingPair
 from auth import auth_bp, init_auth
 import json
 import os
@@ -107,6 +107,23 @@ def get_user_simulated_wallet():
     return simulated_wallet
 
 
+def get_user_trading_pairs():
+    """Get trading pairs for the current user"""
+    if current_user.is_authenticated:
+        # Get user's active trading pairs from database
+        user_pairs = UserTradingPair.query.filter_by(
+            user_id=current_user.id,
+            is_active=True
+        ).all()
+
+        if user_pairs:
+            # Convert to dict format: {display_name: symbol}
+            return {pair.display_name: pair.symbol for pair in user_pairs}
+
+    # Fallback to config default
+    return config.TRADING_PAIRS
+
+
 # ============================================================================
 # PAGE ROUTES (Protected by login_required)
 # ============================================================================
@@ -115,49 +132,49 @@ def get_user_simulated_wallet():
 @login_required
 def index():
     """Render main dashboard - Overview page"""
-    return render_template('overview.html', trading_pairs=config.TRADING_PAIRS)
+    return render_template('overview.html', trading_pairs=get_user_trading_pairs())
 
 
 @app.route('/strategies')
 @login_required
 def strategies():
     """Render strategies page"""
-    return render_template('strategies.html', trading_pairs=config.TRADING_PAIRS)
+    return render_template('strategies.html', trading_pairs=get_user_trading_pairs())
 
 
 @app.route('/positions')
 @login_required
 def positions():
     """Render positions page"""
-    return render_template('positions.html', trading_pairs=config.TRADING_PAIRS)
+    return render_template('positions.html', trading_pairs=get_user_trading_pairs())
 
 
 @app.route('/performance')
 @login_required
 def performance():
     """Render performance page"""
-    return render_template('performance.html', trading_pairs=config.TRADING_PAIRS)
+    return render_template('performance.html', trading_pairs=get_user_trading_pairs())
 
 
 @app.route('/market')
 @login_required
 def market():
     """Render market analysis page"""
-    return render_template('market.html', trading_pairs=config.TRADING_PAIRS)
+    return render_template('market.html', trading_pairs=get_user_trading_pairs())
 
 
 @app.route('/activity')
 @login_required
 def activity():
     """Render activity feed page"""
-    return render_template('activity.html', trading_pairs=config.TRADING_PAIRS)
+    return render_template('activity.html', trading_pairs=get_user_trading_pairs())
 
 
 @app.route('/dashboard')
 @login_required
 def dashboard_legacy():
     """Legacy dashboard route - redirects to overview"""
-    return render_template('dashboard.html', trading_pairs=config.TRADING_PAIRS)
+    return render_template('dashboard.html', trading_pairs=get_user_trading_pairs())
 
 
 @app.route('/api/status')
@@ -239,12 +256,19 @@ def get_status():
 def get_positions():
     """Get all active positions with current P&L"""
     try:
+        # Get user's trading pairs for filtering
+        user_pairs = get_user_trading_pairs()
+        user_symbols = set(user_pairs.values())
+
         # Use simulated wallet if in dry-run mode
         if config.TRADING_PARAMS.get('dry_run') and simulated_wallet:
             positions = simulated_wallet.get_all_positions()
 
             positions_data = []
             for pos in positions:
+                # Filter by user's trading pairs
+                if pos['pair'] not in user_symbols:
+                    continue
                 # Get current price
                 current_price = data_fetcher.get_latest_price(pos['pair'])
 
@@ -284,6 +308,11 @@ def get_positions():
                 # Convert B-BTC_USDT to BTCUSDT format
                 if pair.startswith('B-') and '_USDT' in pair:
                     symbol = pair.replace('B-', '').replace('_USDT', 'USDT')
+
+                    # Filter by user's trading pairs
+                    if symbol not in user_symbols:
+                        continue
+
                     current_price = data_fetcher.get_latest_price(symbol)
                 else:
                     current_price = 0
@@ -335,7 +364,7 @@ def get_prices():
     try:
         prices = []
 
-        for name, symbol in config.TRADING_PAIRS.items():
+        for name, symbol in get_user_trading_pairs().items():
             price = data_fetcher.get_latest_price(symbol)
             prices.append({
                 'name': name,
@@ -444,11 +473,25 @@ def close_position():
 def handle_config():
     """Get or update bot configuration"""
     if request.method == 'GET':
+        # Get user-specific risk management settings
+        user_risk_settings = {}
+        if current_user.profile:
+            user_risk_settings = {
+                'max_position_size_percent': current_user.profile.max_position_size_percent,
+                'leverage': current_user.profile.leverage,
+                'stop_loss_percent': current_user.profile.stop_loss_percent,
+                'take_profit_percent': current_user.profile.take_profit_percent,
+                'max_open_positions': current_user.profile.max_open_positions,
+            }
+
+        # Merge with config defaults
+        risk_management = {**config.RISK_MANAGEMENT, **user_risk_settings}
+
         return jsonify({
-            'trading_pairs': config.TRADING_PAIRS,
+            'trading_pairs': get_user_trading_pairs(),
             'timeframes': config.TIMEFRAMES,
             'indicators': config.INDICATORS,
-            'risk_management': config.RISK_MANAGEMENT,
+            'risk_management': risk_management,
             'trading_params': config.TRADING_PARAMS
         })
     elif request.method == 'POST':
@@ -494,7 +537,7 @@ def get_signals():
     try:
         signals = []
 
-        for name, symbol in config.TRADING_PAIRS.items():
+        for name, symbol in get_user_trading_pairs().items():
             # Generate signal for each pair
             signal = signal_generator.generate_signal(symbol, config.TIMEFRAMES)
 
@@ -587,7 +630,7 @@ def get_liquidity_all():
     try:
         liquidity_data = []
 
-        for name, symbol in config.TRADING_PAIRS.items():
+        for name, symbol in get_user_trading_pairs().items():
             # Convert to CoinDCX format
             coindcx_pair = data_fetcher.convert_to_coindcx_symbol(symbol)
 
@@ -715,7 +758,23 @@ def get_bot_activity():
         filter_type = request.args.get('type', None)
 
         activities = activity_log.get_recent_activities(limit=limit, filter_type=filter_type)
-        return jsonify(activities)
+
+        # Filter activities by user's trading pairs
+        user_pairs = get_user_trading_pairs()
+        user_symbols = set(user_pairs.values())  # Get just the symbols (BTCUSDT, ETHUSDT, etc.)
+
+        # Filter activities to only include user's pairs
+        filtered_activities = []
+        for activity in activities:
+            # Check if activity has a pair field
+            if 'pair' in activity:
+                if activity['pair'] in user_symbols:
+                    filtered_activities.append(activity)
+            else:
+                # Include non-pair specific activities (bot status, errors, etc.)
+                filtered_activities.append(activity)
+
+        return jsonify(filtered_activities)
     except Exception as e:
         logger.error(f"Error getting bot activity: {e}")
         return jsonify({'error': str(e)}), 500

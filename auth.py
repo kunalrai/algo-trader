@@ -3,11 +3,12 @@ Authentication Blueprint for Flask Application
 Supports Google OAuth and Email/Password authentication
 """
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, session
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, session, jsonify, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from authlib.integrations.flask_client import OAuth
-from models import db, User, UserProfile, UserSimulatedWallet, create_user_with_profile
+from models import db, User, UserProfile, UserSimulatedWallet, UserTradingPair, create_user_with_profile
 from datetime import datetime
+from functools import wraps
 import re
 
 # Create blueprint
@@ -44,6 +45,18 @@ def init_auth(app):
 def load_user(user_id):
     """Load user by ID for Flask-Login"""
     return User.query.get(int(user_id))
+
+
+def superadmin_required(f):
+    """Decorator to require superadmin access"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for('auth.login'))
+        if not current_user.is_superadmin:
+            abort(403)  # Forbidden
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 # ============================================================================
@@ -316,4 +329,215 @@ def profile():
         {'id': 'rsi', 'name': 'RSI Strategy'}
     ]
 
-    return render_template('auth/profile.html', strategies=strategies, profile=user_profile)
+    # Get user's trading pairs and convert to dict for template
+    trading_pairs_db = UserTradingPair.query.filter_by(user_id=current_user.id).order_by(UserTradingPair.created_at).all()
+    trading_pairs = [{
+        'id': pair.id,
+        'symbol': pair.symbol,
+        'display_name': pair.display_name,
+        'is_active': pair.is_active
+    } for pair in trading_pairs_db]
+
+    # Available trading pairs
+    available_pairs = [
+        {'symbol': 'BTCUSDT', 'name': 'BTC'},
+        {'symbol': 'ETHUSDT', 'name': 'ETH'},
+        {'symbol': 'XRPUSDT', 'name': 'XRP'},
+        {'symbol': 'BNBUSDT', 'name': 'BNB'},
+        {'symbol': 'SOLUSDT', 'name': 'SOL'},
+        {'symbol': 'ADAUSDT', 'name': 'ADA'},
+        {'symbol': 'DOGEUSDT', 'name': 'DOGE'},
+        {'symbol': 'MATICUSDT', 'name': 'MATIC'},
+        {'symbol': 'DOTUSDT', 'name': 'DOT'},
+        {'symbol': 'LINKUSDT', 'name': 'LINK'},
+        {'symbol': 'AVAXUSDT', 'name': 'AVAX'},
+        {'symbol': 'UNIUSDT', 'name': 'UNI'},
+        {'symbol': 'LTCUSDT', 'name': 'LTC'},
+        {'symbol': 'ATOMUSDT', 'name': 'ATOM'},
+        {'symbol': 'ETCUSDT', 'name': 'ETC'},
+        {'symbol': 'TAOUSDT', 'name': 'TAO'},
+        {'symbol': 'ZECUSDT', 'name': 'ZEC'},
+    ]
+
+    return render_template('auth/profile.html', strategies=strategies, profile=user_profile,
+                         trading_pairs=trading_pairs, available_pairs=available_pairs)
+
+
+@auth_bp.route('/trading-pairs/add', methods=['POST'])
+@login_required
+def add_trading_pair():
+    """Add a trading pair to user's list"""
+    try:
+        data = request.get_json()
+        symbol = data.get('symbol', '').strip().upper()
+        display_name = data.get('display_name', '').strip().upper()
+
+        if not symbol or not display_name:
+            return jsonify({'success': False, 'message': 'Symbol and display name are required'}), 400
+
+        # Check if pair already exists
+        existing = UserTradingPair.query.filter_by(
+            user_id=current_user.id,
+            symbol=symbol
+        ).first()
+
+        if existing:
+            return jsonify({'success': False, 'message': 'Trading pair already added'}), 400
+
+        # Add new trading pair
+        new_pair = UserTradingPair(
+            user_id=current_user.id,
+            symbol=symbol,
+            display_name=display_name
+        )
+        db.session.add(new_pair)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'{display_name} added successfully',
+            'pair': {
+                'id': new_pair.id,
+                'symbol': new_pair.symbol,
+                'display_name': new_pair.display_name
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@auth_bp.route('/trading-pairs/remove/<int:pair_id>', methods=['DELETE'])
+@login_required
+def remove_trading_pair(pair_id):
+    """Remove a trading pair from user's list"""
+    try:
+        trading_pair = UserTradingPair.query.filter_by(
+            id=pair_id,
+            user_id=current_user.id
+        ).first()
+
+        if not trading_pair:
+            return jsonify({'success': False, 'message': 'Trading pair not found'}), 404
+
+        display_name = trading_pair.display_name
+        db.session.delete(trading_pair)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'{display_name} removed successfully'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@auth_bp.route('/trading-pairs/toggle/<int:pair_id>', methods=['POST'])
+@login_required
+def toggle_trading_pair(pair_id):
+    """Toggle active status of a trading pair"""
+    try:
+        trading_pair = UserTradingPair.query.filter_by(
+            id=pair_id,
+            user_id=current_user.id
+        ).first()
+
+        if not trading_pair:
+            return jsonify({'success': False, 'message': 'Trading pair not found'}), 404
+
+        trading_pair.is_active = not trading_pair.is_active
+        db.session.commit()
+
+        status = 'enabled' if trading_pair.is_active else 'disabled'
+        return jsonify({
+            'success': True,
+            'message': f'{trading_pair.display_name} {status}',
+            'is_active': trading_pair.is_active
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ============================================================================
+# SUPERADMIN ROUTES
+# ============================================================================
+
+@auth_bp.route('/admin/users')
+@superadmin_required
+def admin_users():
+    """Superadmin dashboard for managing all users"""
+    users = User.query.order_by(User.created_at.desc()).all()
+
+    users_data = []
+    for user in users:
+        users_data.append({
+            'id': user.id,
+            'email': user.email,
+            'name': user.name or 'N/A',
+            'is_active': user.is_active,
+            'is_verified': user.is_verified,
+            'is_superadmin': user.is_superadmin,
+            'trading_mode': user.profile.trading_mode if user.profile else 'N/A',
+            'has_api_keys': user.profile.has_api_keys if user.profile else False,
+            'created_at': user.created_at.strftime('%Y-%m-%d %H:%M'),
+            'last_login': user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'Never',
+        })
+
+    return render_template('auth/admin_users.html', users=users_data)
+
+
+@auth_bp.route('/admin/users/<int:user_id>/toggle-active', methods=['POST'])
+@superadmin_required
+def admin_toggle_user_active(user_id):
+    """Toggle user active status"""
+    try:
+        user = User.query.get_or_404(user_id)
+
+        if user.is_superadmin and user.id != current_user.id:
+            return jsonify({'success': False, 'message': 'Cannot deactivate other superadmins'}), 403
+
+        user.is_active = not user.is_active
+        db.session.commit()
+
+        status = 'activated' if user.is_active else 'deactivated'
+        return jsonify({
+            'success': True,
+            'message': f'User {user.email} {status}',
+            'is_active': user.is_active
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@auth_bp.route('/admin/users/<int:user_id>/delete', methods=['DELETE'])
+@superadmin_required
+def admin_delete_user(user_id):
+    """Delete a user"""
+    try:
+        user = User.query.get_or_404(user_id)
+
+        if user.is_superadmin:
+            return jsonify({'success': False, 'message': 'Cannot delete superadmin users'}), 403
+
+        if user.id == current_user.id:
+            return jsonify({'success': False, 'message': 'Cannot delete yourself'}), 403
+
+        email = user.email
+        db.session.delete(user)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'User {email} deleted successfully'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
