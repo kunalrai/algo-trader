@@ -10,6 +10,7 @@ from strategies.ema_crossover_strategy import EMACrossoverStrategy
 from strategies.macd_strategy import MACDStrategy
 from strategies.rsi_strategy import RSIStrategy
 from strategies.combined_strategy import CombinedStrategy
+from strategies.support_resistance_strategy import SupportResistanceStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class StrategyManager:
         self.register_strategy('macd', MACDStrategy())
         self.register_strategy('rsi', RSIStrategy())
         self.register_strategy('combined', CombinedStrategy())
+        self.register_strategy('support_resistance', SupportResistanceStrategy())
 
         # Set default active strategy
         self.set_active_strategy('combined')
@@ -197,7 +199,8 @@ class StrategyManager:
             'ema_crossover': EMACrossoverStrategy,
             'macd': MACDStrategy,
             'rsi': RSIStrategy,
-            'combined': CombinedStrategy
+            'combined': CombinedStrategy,
+            'support_resistance': SupportResistanceStrategy
         }
 
         if strategy_type not in strategy_classes:
