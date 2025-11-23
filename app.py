@@ -34,7 +34,7 @@ from user_activity_log import get_user_activity_log
 from user_data_fetcher import get_user_data_fetcher
 from user_position_manager import get_user_position_manager
 from user_order_manager import get_user_order_manager
-from user_signal_generator import get_user_signal_generator
+from user_signal_generator import get_user_signal_generator, update_user_strategy
 from user_trading_bot import start_user_bot, stop_user_bot, is_user_bot_running
 
 # Initialize Flask app
@@ -1163,6 +1163,9 @@ def set_active_strategy():
                 db.session.add(user_profile)
                 db.session.commit()
                 logger.info(f"User {current_user.id}: Created profile with strategy '{strategy_id}'")
+
+            # Update the cached signal generator with the new strategy
+            update_user_strategy(current_user.id, strategy_id)
 
             active_info = strategy_manager.get_active_strategy_info()
 
