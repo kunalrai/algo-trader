@@ -299,7 +299,277 @@
     </div>
 </div>
 
-<!-- Strategy Performance Comparison (if available) -->
+<!-- Custom Strategy Help Section -->
+<div class="bg-gradient-to-r from-indigo-900 to-purple-900 rounded-lg shadow-lg p-6 border border-indigo-600 mb-8">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            How to Create Custom Strategies
+        </h2>
+        <button onclick="toggleHelpSection()" id="helpToggleBtn" class="text-indigo-300 hover:text-white text-sm flex items-center gap-1">
+            <span id="helpToggleText">Show Details</span>
+            <svg id="helpToggleIcon" class="w-4 h-4 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Quick Start Steps (Always Visible) -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 text-center">
+            <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                <span class="text-white font-bold">1</span>
+            </div>
+            <p class="text-sm text-white font-semibold">Download Template</p>
+            <p class="text-xs text-gray-400">Get the starter template</p>
+        </div>
+        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 text-center">
+            <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                <span class="text-white font-bold">2</span>
+            </div>
+            <p class="text-sm text-white font-semibold">Write Your Logic</p>
+            <p class="text-xs text-gray-400">Implement analyze() method</p>
+        </div>
+        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 text-center">
+            <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                <span class="text-white font-bold">3</span>
+            </div>
+            <p class="text-sm text-white font-semibold">Upload File</p>
+            <p class="text-xs text-gray-400">Drag & drop your .py file</p>
+        </div>
+        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 text-center">
+            <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                <span class="text-white font-bold">4</span>
+            </div>
+            <p class="text-sm text-white font-semibold">Activate Strategy</p>
+            <p class="text-xs text-gray-400">Click "Use Strategy"</p>
+        </div>
+    </div>
+
+    <!-- Expandable Detailed Help Section -->
+    <div id="helpDetailsSection" class="hidden">
+        <!-- Strategy Structure -->
+        <div class="bg-gray-900 bg-opacity-50 rounded-lg p-5 mb-4">
+            <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                </svg>
+                Strategy Structure
+            </h3>
+            <div class="bg-gray-800 rounded-lg p-4 overflow-x-auto">
+                <pre class="text-sm text-gray-300"><code>from strategies.base_strategy import BaseStrategy
+
+class MyCustomStrategy(BaseStrategy):
+    """Your strategy description here"""
+
+    def __init__(self, min_strength=0.6):
+        super().__init__()
+        self.min_strength = min_strength
+
+    def get_required_timeframes(self):
+        """Return list of timeframes needed"""
+        return ['5m', '1h', '4h']
+
+    def get_required_indicators(self):
+        """Return list of indicators needed"""
+        return ['ema_9', 'ema_21', 'rsi', 'macd']
+
+    def analyze(self, data, current_price):
+        """Analyze market data and return signal"""
+        # Your trading logic here
+        return {
+            'action': 'long',  # 'long', 'short', or 'flat'
+            'strength': 0.8,   # 0.0 to 1.0
+            'confidence': 0.75,
+            'reasons': ['EMA crossover detected'],
+            'indicators': {},
+            'metadata': {}
+        }</code></pre>
+            </div>
+        </div>
+
+        <!-- Two Column Layout for Requirements and Indicators -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <!-- Requirements -->
+            <div class="bg-gray-900 bg-opacity-50 rounded-lg p-5">
+                <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Requirements
+                </h3>
+                <ul class="space-y-2 text-sm">
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-400 mt-1">&#x2713;</span>
+                        <span class="text-gray-300">Inherit from <code class="bg-gray-700 px-1 rounded text-purple-300">BaseStrategy</code></span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-400 mt-1">&#x2713;</span>
+                        <span class="text-gray-300">Implement <code class="bg-gray-700 px-1 rounded text-purple-300">analyze()</code> method</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-400 mt-1">&#x2713;</span>
+                        <span class="text-gray-300">Implement <code class="bg-gray-700 px-1 rounded text-purple-300">get_required_timeframes()</code></span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-400 mt-1">&#x2713;</span>
+                        <span class="text-gray-300">Implement <code class="bg-gray-700 px-1 rounded text-purple-300">get_required_indicators()</code></span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-400 mt-1">&#x2713;</span>
+                        <span class="text-gray-300">One strategy class per file</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-green-400 mt-1">&#x2713;</span>
+                        <span class="text-gray-300">Return correct signal format</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Available Indicators -->
+            <div class="bg-gray-900 bg-opacity-50 rounded-lg p-5">
+                <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    Available Indicators
+                </h3>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                        <p class="text-gray-400 text-xs uppercase mb-1">EMAs</p>
+                        <p class="text-gray-300"><code class="text-purple-300">ema_9</code>, <code class="text-purple-300">ema_21</code>, <code class="text-purple-300">ema_50</code>, <code class="text-purple-300">ema_200</code></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-xs uppercase mb-1">MACD</p>
+                        <p class="text-gray-300"><code class="text-purple-300">macd</code>, <code class="text-purple-300">macd_signal</code>, <code class="text-purple-300">macd_hist</code></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-xs uppercase mb-1">RSI</p>
+                        <p class="text-gray-300"><code class="text-purple-300">rsi</code> (0-100)</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-xs uppercase mb-1">Bollinger</p>
+                        <p class="text-gray-300"><code class="text-purple-300">bollinger_upper</code>, <code class="text-purple-300">bollinger_lower</code></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-xs uppercase mb-1">ATR</p>
+                        <p class="text-gray-300"><code class="text-purple-300">atr</code></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-xs uppercase mb-1">Timeframes</p>
+                        <p class="text-gray-300"><code class="text-purple-300">1m</code>, <code class="text-purple-300">5m</code>, <code class="text-purple-300">15m</code>, <code class="text-purple-300">1h</code>, <code class="text-purple-300">4h</code>, <code class="text-purple-300">1d</code></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signal Format -->
+        <div class="bg-gray-900 bg-opacity-50 rounded-lg p-5 mb-4">
+            <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                Signal Format (Return Value)
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div class="bg-gray-800 rounded p-3">
+                    <p class="text-purple-400 font-mono mb-1">action</p>
+                    <p class="text-gray-300"><code>'long'</code>, <code>'short'</code>, or <code>'flat'</code></p>
+                </div>
+                <div class="bg-gray-800 rounded p-3">
+                    <p class="text-purple-400 font-mono mb-1">strength</p>
+                    <p class="text-gray-300">Float from <code>0.0</code> to <code>1.0</code></p>
+                </div>
+                <div class="bg-gray-800 rounded p-3">
+                    <p class="text-purple-400 font-mono mb-1">confidence</p>
+                    <p class="text-gray-300">Float from <code>0.0</code> to <code>1.0</code></p>
+                </div>
+                <div class="bg-gray-800 rounded p-3">
+                    <p class="text-purple-400 font-mono mb-1">reasons</p>
+                    <p class="text-gray-300">List of strings explaining the signal</p>
+                </div>
+                <div class="bg-gray-800 rounded p-3">
+                    <p class="text-purple-400 font-mono mb-1">indicators</p>
+                    <p class="text-gray-300">Dict of indicator values used</p>
+                </div>
+                <div class="bg-gray-800 rounded p-3">
+                    <p class="text-purple-400 font-mono mb-1">metadata</p>
+                    <p class="text-gray-300">Dict of any extra data</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security Restrictions & Tips -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Security Restrictions -->
+            <div class="bg-red-900 bg-opacity-30 border border-red-700 rounded-lg p-5">
+                <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                    Not Allowed (Security)
+                </h3>
+                <ul class="space-y-1 text-sm text-gray-300">
+                    <li class="flex items-center gap-2">
+                        <span class="text-red-400">&#x2717;</span>
+                        <span>Imports: <code class="text-red-300">os</code>, <code class="text-red-300">sys</code>, <code class="text-red-300">subprocess</code>, <code class="text-red-300">socket</code></span>
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <span class="text-red-400">&#x2717;</span>
+                        <span>Functions: <code class="text-red-300">eval()</code>, <code class="text-red-300">exec()</code>, <code class="text-red-300">open()</code></span>
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <span class="text-red-400">&#x2717;</span>
+                        <span>Network operations or file I/O</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Tips -->
+            <div class="bg-green-900 bg-opacity-30 border border-green-700 rounded-lg p-5">
+                <h3 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                    Tips for Success
+                </h3>
+                <ul class="space-y-1 text-sm text-gray-300">
+                    <li class="flex items-center gap-2">
+                        <span class="text-green-400">&#x2713;</span>
+                        <span>Use multi-timeframe confirmation</span>
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <span class="text-green-400">&#x2713;</span>
+                        <span>Always test in DRY RUN mode first</span>
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <span class="text-green-400">&#x2713;</span>
+                        <span>Add clear reasons for debugging</span>
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <span class="text-green-400">&#x2713;</span>
+                        <span>Handle errors gracefully (return 'flat')</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Download Template Button -->
+        <div class="mt-4 text-center">
+            <button onclick="downloadTemplate()" class="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors inline-flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                Download Strategy Template
+            </button>
+            <p class="text-xs text-gray-400 mt-2">Get a fully working example to customize</p>
+        </div>
+    </div>
+</div>
+
+<!-- Strategy Guidelines -->
 <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
     <h2 class="text-xl font-bold text-white mb-4">Strategy Guidelines</h2>
     <div class="space-y-4 text-sm text-gray-300">
@@ -336,6 +606,23 @@
 
 {% block extra_scripts %}
 <script>
+// Help Section Toggle
+function toggleHelpSection() {
+    const section = document.getElementById('helpDetailsSection');
+    const toggleText = document.getElementById('helpToggleText');
+    const toggleIcon = document.getElementById('helpToggleIcon');
+
+    if (section.classList.contains('hidden')) {
+        section.classList.remove('hidden');
+        toggleText.textContent = 'Hide Details';
+        toggleIcon.classList.add('rotate-180');
+    } else {
+        section.classList.add('hidden');
+        toggleText.textContent = 'Show Details';
+        toggleIcon.classList.remove('rotate-180');
+    }
+}
+
 async function fetchActiveStrategy() {
     try {
         const response = await fetch('/api/strategies/active');
