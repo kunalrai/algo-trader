@@ -35,6 +35,7 @@ from user_data_fetcher import get_user_data_fetcher
 from user_position_manager import get_user_position_manager
 from user_order_manager import get_user_order_manager
 from user_signal_generator import get_user_signal_generator
+from user_trading_bot import start_user_bot, stop_user_bot, is_user_bot_running
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -858,6 +859,11 @@ def get_bot_status():
         user_status_tracker = get_user_bot_status_tracker(current_user.id)
         status = user_status_tracker.get_status()
         status['user_id'] = current_user.id
+
+        # Also check actual bot running state (in case of mismatch)
+        actual_running = is_user_bot_running(current_user.id)
+        status['bot_running'] = actual_running
+
         return jsonify(status)
     except Exception as e:
         logger.error(f"Error getting bot status: {e}")
@@ -867,12 +873,10 @@ def get_bot_status():
 @app.route('/api/bot/start', methods=['POST'])
 @login_required
 def start_bot():
-    """Start the trading bot for the current user"""
+    """Start the trading bot for the current user (per-user isolation)"""
     try:
-        user_status_tracker = get_user_bot_status_tracker(current_user.id)
-        status = user_status_tracker.get_status()
-
-        if status['bot_running']:
+        # Check if bot is already running
+        if is_user_bot_running(current_user.id):
             return jsonify({'success': False, 'message': 'Bot is already running'}), 400
 
         # Get user's trading pairs
@@ -882,19 +886,19 @@ def start_bot():
         if not pairs_list:
             return jsonify({'success': False, 'message': 'No trading pairs configured. Please add trading pairs in your profile.'}), 400
 
-        # Get scan interval from config
-        scan_interval = config.TRADING_PARAMS.get('signal_scan_interval', 60)
+        # Start the user's bot (runs in background thread)
+        success, message = start_user_bot(current_user.id, app)
 
-        # Start the bot (mark as running in database)
-        user_status_tracker.start_bot(scan_interval=scan_interval, pairs=pairs_list)
+        if success:
+            logger.info(f"Bot started for user {current_user.id} with pairs: {pairs_list}")
+            return jsonify({
+                'success': True,
+                'message': message,
+                'pairs': pairs_list
+            })
+        else:
+            return jsonify({'success': False, 'message': message}), 400
 
-        logger.info(f"Bot started for user {current_user.id} with pairs: {pairs_list}")
-
-        return jsonify({
-            'success': True,
-            'message': 'Bot started successfully',
-            'pairs': pairs_list
-        })
     except Exception as e:
         logger.error(f"Error starting bot: {e}")
         return jsonify({'error': str(e)}), 500
@@ -903,23 +907,24 @@ def start_bot():
 @app.route('/api/bot/stop', methods=['POST'])
 @login_required
 def stop_bot():
-    """Stop the trading bot for the current user"""
+    """Stop the trading bot for the current user (per-user isolation)"""
     try:
-        user_status_tracker = get_user_bot_status_tracker(current_user.id)
-        status = user_status_tracker.get_status()
-
-        if not status['bot_running']:
+        # Check if bot is running
+        if not is_user_bot_running(current_user.id):
             return jsonify({'success': False, 'message': 'Bot is not running'}), 400
 
-        # Stop the bot
-        user_status_tracker.stop_bot()
+        # Stop the user's bot
+        success, message = stop_user_bot(current_user.id)
 
-        logger.info(f"Bot stopped for user {current_user.id}")
+        if success:
+            logger.info(f"Bot stopped for user {current_user.id}")
+            return jsonify({
+                'success': True,
+                'message': message
+            })
+        else:
+            return jsonify({'success': False, 'message': message}), 400
 
-        return jsonify({
-            'success': True,
-            'message': 'Bot stopped successfully'
-        })
     except Exception as e:
         logger.error(f"Error stopping bot: {e}")
         return jsonify({'error': str(e)}), 500
