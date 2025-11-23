@@ -31,6 +31,10 @@ import os
 from user_wallet_manager import get_user_wallet_manager
 from user_bot_status import get_user_bot_status_tracker
 from user_activity_log import get_user_activity_log
+from user_data_fetcher import get_user_data_fetcher
+from user_position_manager import get_user_position_manager
+from user_order_manager import get_user_order_manager
+from user_signal_generator import get_user_signal_generator
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -111,6 +115,63 @@ def get_user_simulated_wallet():
         # Return user-specific wallet manager from database
         return get_user_wallet_manager(current_user.id)
     return None
+
+
+def get_user_data_fetcher_instance():
+    """Get user-specific data fetcher with isolated caching"""
+    if current_user.is_authenticated:
+        user_client = get_user_client()
+        return get_user_data_fetcher(current_user.id, user_client)
+    return data_fetcher  # Fallback to global
+
+
+def get_user_position_manager_instance():
+    """Get user-specific position manager"""
+    if current_user.is_authenticated:
+        user_client = get_user_client()
+        # Get user-specific risk config
+        user_risk_config = dict(config.RISK_MANAGEMENT)
+        if current_user.profile:
+            user_risk_config.update({
+                'max_position_size_percent': current_user.profile.max_position_size_percent,
+                'leverage': current_user.profile.leverage,
+                'stop_loss_percent': current_user.profile.stop_loss_percent,
+                'take_profit_percent': current_user.profile.take_profit_percent,
+            })
+        return get_user_position_manager(current_user.id, user_client, user_risk_config)
+    return position_manager  # Fallback to global
+
+
+def get_user_order_manager_instance():
+    """Get user-specific order manager"""
+    if current_user.is_authenticated:
+        user_client = get_user_client()
+        is_paper_mode = get_user_trading_mode()
+        # Get user-specific risk config
+        user_risk_config = dict(config.RISK_MANAGEMENT)
+        if current_user.profile:
+            user_risk_config.update({
+                'max_position_size_percent': current_user.profile.max_position_size_percent,
+                'leverage': current_user.profile.leverage,
+                'stop_loss_percent': current_user.profile.stop_loss_percent,
+                'take_profit_percent': current_user.profile.take_profit_percent,
+            })
+        return get_user_order_manager(current_user.id, user_client, user_risk_config, is_paper_mode)
+    return None
+
+
+def get_user_signal_generator_instance():
+    """Get user-specific signal generator with isolated data fetching"""
+    if current_user.is_authenticated:
+        user_fetcher = get_user_data_fetcher_instance()
+        return get_user_signal_generator(
+            user_id=current_user.id,
+            data_fetcher=user_fetcher,
+            indicator_config=config.INDICATORS,
+            rsi_config=config.INDICATORS['RSI'],
+            use_strategy_system=config.STRATEGY_CONFIG.get('enabled', False)
+        )
+    return signal_generator  # Fallback to global
 
 
 def get_user_trading_pairs():
@@ -239,9 +300,10 @@ def get_status():
             # Get wallet balance from real exchange
             wallet_info = wallet_manager.get_balance_summary()
 
-            # Get positions
-            positions = position_manager.get_all_positions()
-            position_summary = position_manager.get_position_summary()
+            # Get positions (per-user position manager)
+            user_position_mgr = get_user_position_manager_instance()
+            positions = user_position_mgr.get_all_positions()
+            position_summary = user_position_mgr.get_position_summary()
 
             status = {
                 'timestamp': datetime.now().isoformat(),
@@ -293,8 +355,9 @@ def get_positions():
                 # Filter by user's trading pairs
                 if pos.get('pair') not in user_symbols:
                     continue
-                # Get current price
-                current_price = data_fetcher.get_latest_price(pos.get('pair'))
+                # Get current price (per-user data fetcher)
+                user_fetcher = get_user_data_fetcher_instance()
+                current_price = user_fetcher.get_latest_price(pos.get('pair'))
 
                 # Update position price in user's simulated wallet
                 if current_price > 0:
@@ -323,8 +386,9 @@ def get_positions():
 
             return jsonify(positions_data)
         else:
-            # Get real positions from exchange
-            positions = position_manager.get_all_positions()
+            # Get real positions from exchange (per-user)
+            user_position_mgr = get_user_position_manager_instance()
+            positions = user_position_mgr.get_all_positions()
 
             positions_data = []
             for pos in positions:
@@ -339,7 +403,8 @@ def get_positions():
                     if symbol not in user_symbols:
                         continue
 
-                    current_price = data_fetcher.get_latest_price(symbol)
+                    user_fetcher = get_user_data_fetcher_instance()
+                    current_price = user_fetcher.get_latest_price(symbol)
                 else:
                     current_price = 0
 
@@ -386,12 +451,13 @@ def get_positions():
 @app.route('/api/prices')
 @login_required
 def get_prices():
-    """Get current prices for all trading pairs"""
+    """Get current prices for all trading pairs (per-user isolation)"""
     try:
         prices = []
+        user_fetcher = get_user_data_fetcher_instance()
 
         for name, symbol in get_user_trading_pairs().items():
-            price = data_fetcher.get_latest_price(symbol)
+            price = user_fetcher.get_latest_price(symbol)
             prices.append({
                 'name': name,
                 'symbol': symbol,
@@ -407,13 +473,14 @@ def get_prices():
 @app.route('/api/market/<symbol>')
 @login_required
 def get_market_data(symbol):
-    """Get detailed market data for a specific symbol"""
+    """Get detailed market data for a specific symbol (per-user isolation)"""
     try:
         # Get candlestick data for multiple timeframes
+        user_fetcher = get_user_data_fetcher_instance()
         timeframes_data = {}
 
         for tf_name, interval in config.TIMEFRAMES.items():
-            df = data_fetcher.fetch_candles(symbol, interval, limit=100)
+            df = user_fetcher.fetch_candles(symbol, interval, limit=100)
 
             if not df.empty:
                 # Get latest candle
@@ -457,8 +524,9 @@ def close_position():
             if not position:
                 return jsonify({'error': 'Position not found'}), 404
 
-            # Get current price to close at
-            current_price = data_fetcher.get_latest_price(position.get('pair'))
+            # Get current price to close at (per-user data fetcher)
+            user_fetcher = get_user_data_fetcher_instance()
+            current_price = user_fetcher.get_latest_price(position.get('pair'))
 
             if current_price == 0:
                 return jsonify({'error': 'Could not get current price'}), 500
@@ -481,8 +549,9 @@ def close_position():
             else:
                 return jsonify({'error': 'Failed to close position'}), 500
 
-        # Actually close position (live mode)
-        success = position_manager.close_position(position_id, reason="Manual close via dashboard")
+        # Actually close position (live mode) - per-user position manager
+        user_position_mgr = get_user_position_manager_instance()
+        success = user_position_mgr.close_position(position_id, reason="Manual close via dashboard")
 
         if success:
             return jsonify({
@@ -563,13 +632,14 @@ def toggle_trading():
 @app.route('/api/signals')
 @login_required
 def get_signals():
-    """Get trading signals for all configured pairs"""
+    """Get trading signals for all configured pairs (per-user isolation)"""
     try:
         signals = []
+        user_signal_gen = get_user_signal_generator_instance()
 
         for name, symbol in get_user_trading_pairs().items():
-            # Generate signal for each pair
-            signal = signal_generator.generate_signal(symbol, config.TIMEFRAMES)
+            # Generate signal for each pair (per-user signal generator)
+            signal = user_signal_gen.generate_signal(symbol, config.TIMEFRAMES)
 
             if signal:
                 signals.append({
@@ -601,10 +671,11 @@ def get_signals():
 @app.route('/api/indicators/<symbol>')
 @login_required
 def get_indicators(symbol):
-    """Get detailed technical indicators for a specific symbol"""
+    """Get detailed technical indicators for a specific symbol (per-user isolation)"""
     try:
-        # Fetch candle data
-        df = data_fetcher.fetch_candles(symbol, '5m', limit=200)
+        # Fetch candle data (per-user data fetcher)
+        user_fetcher = get_user_data_fetcher_instance()
+        df = user_fetcher.fetch_candles(symbol, '5m', limit=200)
 
         if df.empty:
             return jsonify({'error': 'No data available'}), 404
@@ -656,13 +727,14 @@ def get_indicators(symbol):
 @app.route('/api/liquidity')
 @login_required
 def get_liquidity_all():
-    """Get liquidity metrics for all trading pairs"""
+    """Get liquidity metrics for all trading pairs (per-user isolation)"""
     try:
         liquidity_data = []
+        user_fetcher = get_user_data_fetcher_instance()
 
         for name, symbol in get_user_trading_pairs().items():
             # Convert to CoinDCX format
-            coindcx_pair = data_fetcher.convert_to_coindcx_symbol(symbol)
+            coindcx_pair = user_fetcher.convert_to_coindcx_symbol(symbol)
 
             # Get order book analysis
             analysis = market_depth_analyzer.analyze_orderbook(coindcx_pair, depth=20)
@@ -686,10 +758,11 @@ def get_liquidity_all():
 @app.route('/api/liquidity/<symbol>')
 @login_required
 def get_liquidity(symbol):
-    """Get detailed liquidity metrics for a specific symbol"""
+    """Get detailed liquidity metrics for a specific symbol (per-user isolation)"""
     try:
         # Convert to CoinDCX format
-        coindcx_pair = data_fetcher.convert_to_coindcx_symbol(symbol)
+        user_fetcher = get_user_data_fetcher_instance()
+        coindcx_pair = user_fetcher.convert_to_coindcx_symbol(symbol)
 
         # Get full order book analysis
         analysis = market_depth_analyzer.analyze_orderbook(coindcx_pair, depth=50)
@@ -932,14 +1005,15 @@ def get_wallet_history():
 @app.route('/api/chart/<symbol>')
 @login_required
 def get_chart_data(symbol):
-    """Get chart data with S/R levels for a specific symbol"""
+    """Get chart data with S/R levels for a specific symbol (per-user isolation)"""
     try:
         # Get timeframe from query parameter (default: 5m)
         interval = request.args.get('interval', '5')
         limit = int(request.args.get('limit', '100'))
 
-        # Fetch candlestick data
-        df = data_fetcher.fetch_candles(symbol, interval, limit=limit)
+        # Fetch candlestick data (per-user data fetcher)
+        user_fetcher = get_user_data_fetcher_instance()
+        df = user_fetcher.fetch_candles(symbol, interval, limit=limit)
 
         if df.empty:
             return jsonify({'error': 'No data available'}), 404
