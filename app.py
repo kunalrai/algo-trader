@@ -791,6 +791,67 @@ def get_bot_status():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/bot/start', methods=['POST'])
+@login_required
+def start_bot():
+    """Start the trading bot for the current user"""
+    try:
+        user_status_tracker = get_user_bot_status_tracker(current_user.id)
+        status = user_status_tracker.get_status()
+
+        if status['bot_running']:
+            return jsonify({'success': False, 'message': 'Bot is already running'}), 400
+
+        # Get user's trading pairs
+        user_pairs = get_user_trading_pairs()
+        pairs_list = list(user_pairs.values()) if user_pairs else []
+
+        if not pairs_list:
+            return jsonify({'success': False, 'message': 'No trading pairs configured. Please add trading pairs in your profile.'}), 400
+
+        # Get scan interval from config
+        scan_interval = config.TRADING_PARAMS.get('signal_scan_interval', 60)
+
+        # Start the bot (mark as running in database)
+        user_status_tracker.start_bot(scan_interval=scan_interval, pairs=pairs_list)
+
+        logger.info(f"Bot started for user {current_user.id} with pairs: {pairs_list}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Bot started successfully',
+            'pairs': pairs_list
+        })
+    except Exception as e:
+        logger.error(f"Error starting bot: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bot/stop', methods=['POST'])
+@login_required
+def stop_bot():
+    """Stop the trading bot for the current user"""
+    try:
+        user_status_tracker = get_user_bot_status_tracker(current_user.id)
+        status = user_status_tracker.get_status()
+
+        if not status['bot_running']:
+            return jsonify({'success': False, 'message': 'Bot is not running'}), 400
+
+        # Stop the bot
+        user_status_tracker.stop_bot()
+
+        logger.info(f"Bot stopped for user {current_user.id}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Bot stopped successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error stopping bot: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/bot/activity')
 @login_required
 def get_bot_activity():
