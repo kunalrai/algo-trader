@@ -40,10 +40,7 @@
         <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
             <p class="text-xs text-gray-400 uppercase mb-3">Change Strategy</p>
             <select id="strategy-selector" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 mb-3 focus:outline-none focus:border-purple-500">
-                <option value="combined">Combined Multi-Indicator</option>
-                <option value="ema_crossover">EMA Crossover</option>
-                <option value="macd">MACD Strategy</option>
-                <option value="rsi">RSI Mean Reversion</option>
+                <option value="">Loading strategies...</option>
             </select>
             <button onclick="changeStrategy()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -61,133 +58,10 @@
 <!-- Available Strategies -->
 <div class="mb-8">
     <h2 class="text-2xl font-bold text-white mb-6">Available Strategies</h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Combined Multi-Indicator -->
-        <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
-            <div class="flex items-start justify-between mb-4">
-                <div>
-                    <h3 class="text-xl font-bold text-white">Combined Multi-Indicator</h3>
-                    <span class="text-xs text-purple-400 font-semibold">DEFAULT</span>
-                </div>
-                <div class="bg-purple-500 bg-opacity-20 rounded-lg p-2">
-                    <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                    </svg>
-                </div>
-            </div>
-            <p class="text-sm text-gray-300 mb-4">
-                Combines EMA, MACD, and RSI signals across multiple timeframes for comprehensive market analysis.
-            </p>
-            <div class="space-y-2 text-xs text-gray-400">
-                <div class="flex justify-between">
-                    <span>Timeframes:</span>
-                    <span class="text-white">5m, 1h, 4h</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>Indicators:</span>
-                    <span class="text-white">EMA, MACD, RSI, Bollinger</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>Risk Level:</span>
-                    <span class="text-yellow-400">Medium</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- EMA Crossover -->
-        <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
-            <div class="flex items-start justify-between mb-4">
-                <div>
-                    <h3 class="text-xl font-bold text-white">EMA Crossover</h3>
-                    <span class="text-xs text-green-400 font-semibold">TREND FOLLOWING</span>
-                </div>
-                <div class="bg-green-500 bg-opacity-20 rounded-lg p-2">
-                    <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                    </svg>
-                </div>
-            </div>
-            <p class="text-sm text-gray-300 mb-4">
-                Classic trend-following strategy using fast and slow EMA crossovers with volume confirmation.
-            </p>
-            <div class="space-y-2 text-xs text-gray-400">
-                <div class="flex justify-between">
-                    <span>Timeframes:</span>
-                    <span class="text-white">5m, 15m, 1h</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>Indicators:</span>
-                    <span class="text-white">EMA(9, 21), Volume</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>Risk Level:</span>
-                    <span class="text-green-400">Low</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- MACD Strategy -->
-        <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
-            <div class="flex items-start justify-between mb-4">
-                <div>
-                    <h3 class="text-xl font-bold text-white">MACD Strategy</h3>
-                    <span class="text-xs text-blue-400 font-semibold">MOMENTUM</span>
-                </div>
-                <div class="bg-blue-500 bg-opacity-20 rounded-lg p-2">
-                    <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                </div>
-            </div>
-            <p class="text-sm text-gray-300 mb-4">
-                Momentum-based strategy using MACD crossovers and histogram divergence for entry signals.
-            </p>
-            <div class="space-y-2 text-xs text-gray-400">
-                <div class="flex justify-between">
-                    <span>Timeframes:</span>
-                    <span class="text-white">15m, 1h, 4h</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>Indicators:</span>
-                    <span class="text-white">MACD, Signal Line</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>Risk Level:</span>
-                    <span class="text-yellow-400">Medium</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- RSI Mean Reversion -->
-        <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
-            <div class="flex items-start justify-between mb-4">
-                <div>
-                    <h3 class="text-xl font-bold text-white">RSI Mean Reversion</h3>
-                    <span class="text-xs text-red-400 font-semibold">CONTRARIAN</span>
-                </div>
-                <div class="bg-red-500 bg-opacity-20 rounded-lg p-2">
-                    <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                </div>
-            </div>
-            <p class="text-sm text-gray-300 mb-4">
-                Contrarian strategy that identifies oversold/overbought conditions using RSI for mean reversion trades.
-            </p>
-            <div class="space-y-2 text-xs text-gray-400">
-                <div class="flex justify-between">
-                    <span>Timeframes:</span>
-                    <span class="text-white">5m, 15m, 1h</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>Indicators:</span>
-                    <span class="text-white">RSI, Bollinger Bands</span>
-                </div>
-                <div class="flex justify-between">
-                    <span>Risk Level:</span>
-                    <span class="text-red-400">High</span>
-                </div>
-            </div>
+    <div id="builtin-strategies-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Will be populated dynamically -->
+        <div class="col-span-2 text-center py-12 bg-gray-800 rounded-lg border border-gray-700">
+            <p class="text-gray-400">Loading strategies...</p>
         </div>
     </div>
 </div>
@@ -1013,10 +887,107 @@ function handleDrop(e) {
     }
 }
 
+// Fetch and populate all built-in strategies
+async function fetchBuiltinStrategies() {
+    try {
+        const response = await fetch('/api/strategies/list');
+        const data = await response.json();
+
+        if (data.success) {
+            // Populate dropdown selector
+            const selector = document.getElementById('strategy-selector');
+            selector.innerHTML = '';
+
+            data.strategies.forEach(strategy => {
+                const option = document.createElement('option');
+                option.value = strategy.id;
+                option.textContent = strategy.name;
+                if (strategy.is_active) {
+                    option.selected = true;
+                }
+                selector.appendChild(option);
+            });
+
+            // Populate strategy cards
+            const container = document.getElementById('builtin-strategies-container');
+            container.innerHTML = '';
+
+            data.strategies.forEach(strategy => {
+                const card = createStrategyCard(strategy);
+                container.innerHTML += card;
+            });
+        }
+    } catch (error) {
+        console.error('Error fetching strategies:', error);
+    }
+}
+
+function createStrategyCard(strategy) {
+    // Determine color scheme based on strategy type
+    const colorSchemes = {
+        'combined': { bg: 'purple', badge: 'DEFAULT' },
+        'ema_crossover': { bg: 'green', badge: 'TREND FOLLOWING' },
+        'macd': { bg: 'blue', badge: 'MOMENTUM' },
+        'rsi': { bg: 'red', badge: 'CONTRARIAN' },
+        'support_resistance': { bg: 'cyan', badge: 'LONG ONLY' }
+    };
+
+    const scheme = colorSchemes[strategy.id] || { bg: 'purple', badge: 'CUSTOM' };
+    const isActive = strategy.is_active ? '<span class="ml-2 text-xs bg-green-500 text-white px-2 py-0.5 rounded">ACTIVE</span>' : '';
+
+    const timeframes = strategy.required_timeframes ? strategy.required_timeframes.join(', ') : 'N/A';
+    const indicators = strategy.required_indicators ? strategy.required_indicators.slice(0, 4).join(', ') : 'N/A';
+
+    return `
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700 ${strategy.is_active ? 'ring-2 ring-green-500' : ''}">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-white">${strategy.name}${isActive}</h3>
+                    <span class="text-xs text-${scheme.bg}-400 font-semibold">${scheme.badge}</span>
+                </div>
+                <div class="bg-${scheme.bg}-500 bg-opacity-20 rounded-lg p-2">
+                    <svg class="w-6 h-6 text-${scheme.bg}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-sm text-gray-300 mb-4">
+                ${strategy.description || 'No description available'}
+            </p>
+            <div class="space-y-2 text-xs text-gray-400">
+                <div class="flex justify-between">
+                    <span>Version:</span>
+                    <span class="text-white">${strategy.version || '1.0.0'}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Timeframes:</span>
+                    <span class="text-white">${timeframes}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Indicators:</span>
+                    <span class="text-white">${indicators}</span>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button type="button" onclick="selectStrategy('${strategy.id}')" class="w-full ${strategy.is_active ? 'bg-gray-600 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white text-sm font-semibold py-2 px-4 rounded-lg transition-colors" ${strategy.is_active ? 'disabled' : ''}>
+                    ${strategy.is_active ? 'Currently Active' : 'Use This Strategy'}
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function selectStrategy(strategyId) {
+    document.getElementById('strategy-selector').value = strategyId;
+    changeStrategy();
+}
+
 // Initial load
+fetchBuiltinStrategies();
 fetchActiveStrategy();
 fetchCustomStrategies();
 setInterval(fetchActiveStrategy, 5000);
+setInterval(fetchBuiltinStrategies, 10000);
 setInterval(fetchCustomStrategies, 10000);
 </script>
 {% endblock %}
