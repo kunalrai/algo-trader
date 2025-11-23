@@ -17,8 +17,8 @@ from signal_generator import SignalGenerator
 from indicators import TechnicalIndicators
 from market_depth import MarketDepthAnalyzer
 from simulated_wallet import SimulatedWallet
-from bot_status import get_bot_status_tracker
-from activity_log import get_activity_log
+# bot_status.py is deprecated - using database-backed user_bot_status instead
+# activity_log.py is deprecated - using database-backed user_activity_log instead
 from strategies.strategy_manager import get_strategy_manager
 from strategies.custom_strategy_loader import get_custom_strategy_loader
 from models import db, init_db, User, UserProfile, UserTradingPair, CustomStrategy

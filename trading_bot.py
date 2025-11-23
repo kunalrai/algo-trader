@@ -14,8 +14,8 @@ from signal_generator import SignalGenerator
 from order_manager import OrderManager
 from position_manager import PositionManager
 from wallet_manager import WalletManager
-from bot_status import get_bot_status_tracker
-from activity_log import get_activity_log
+from user_bot_status import get_user_bot_status_tracker
+from user_activity_log import get_user_activity_log
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +23,16 @@ logger = logging.getLogger(__name__)
 class TradingBot:
     """Main trading bot orchestrator"""
 
-    def __init__(self, config: Dict):
+    def __init__(self, config: Dict, user_id: int = 1):
         """
         Initialize trading bot
 
         Args:
             config: Configuration dict with all settings
+            user_id: User ID for activity logging (default: 1 for standalone mode)
         """
         self.config = config
+        self.user_id = user_id
 
         # Initialize API client
         self.client = CoinDCXFuturesClient(
@@ -71,11 +73,11 @@ class TradingBot:
             'details': 'Bot starting up...'
         }
 
-        # Bot status tracker (shared with dashboard)
-        self.status_tracker = get_bot_status_tracker()
+        # Bot status tracker (database backed, per-user isolation)
+        self.status_tracker = get_user_bot_status_tracker(self.user_id)
 
-        # Activity log (detailed action tracking)
-        self.activity_log = get_activity_log()
+        # Activity log (detailed action tracking - database backed)
+        self.activity_log = get_user_activity_log(self.user_id)
 
         logger.info("Trading bot initialized successfully")
 

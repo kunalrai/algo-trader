@@ -58,8 +58,8 @@ class UserSignalGenerator:
         """
         # Ensure user's strategy is active before generating signal
         if self.user_strategy and self._signal_generator.strategy_manager:
-            current_active = self._signal_generator.strategy_manager.get_active_strategy()
-            if not current_active or current_active.id != self.user_strategy:
+            current_strategy_id = self._signal_generator.strategy_manager.get_active_strategy_id()
+            if current_strategy_id != self.user_strategy:
                 self._signal_generator.strategy_manager.set_active_strategy(self.user_strategy)
                 logger.debug(f"User {self.user_id}: Switched to strategy '{self.user_strategy}'")
 
