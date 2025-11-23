@@ -206,11 +206,20 @@ class UserTradingBot:
                 self.is_running = True
                 self.start_time = time.time()
 
+                # Get active strategy info
+                from strategies.strategy_manager import get_strategy_manager
+                strategy_manager = get_strategy_manager()
+                active_strategy_info = strategy_manager.get_active_strategy_info()
+                strategy_id = active_strategy_info.get('id', 'combined') if active_strategy_info else 'combined'
+                strategy_name = active_strategy_info.get('name', 'Combined Strategy') if active_strategy_info else 'Combined Strategy'
+
                 # Update status tracker
                 status_tracker = get_user_bot_status_tracker(self.user_id)
                 status_tracker.start_bot(
                     scan_interval=self.trading_params.get('signal_scan_interval', 60),
-                    pairs=list(self.trading_pairs.values())
+                    pairs=list(self.trading_pairs.values()),
+                    strategy_id=strategy_id,
+                    strategy_name=strategy_name
                 )
 
                 # Log bot start

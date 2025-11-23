@@ -19,7 +19,7 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
             <p class="text-xs text-gray-400 uppercase mb-1">Bot Uptime</p>
             <p class="text-xl font-bold text-white" id="bot-uptime">0s</p>
@@ -34,6 +34,11 @@
             <p class="text-xs text-gray-400 uppercase mb-1">Next Scan In</p>
             <p class="text-xl font-bold text-yellow-400" id="next-scan-countdown">--</p>
             <p class="text-xs text-gray-500 mt-1">Interval: <span id="scan-interval">60</span>s</p>
+        </div>
+        <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
+            <p class="text-xs text-gray-400 uppercase mb-1">Active Strategy</p>
+            <p class="text-lg font-bold text-blue-400" id="active-strategy-name">--</p>
+            <p class="text-xs text-gray-500 mt-1" id="active-strategy-id">--</p>
         </div>
         <div class="bg-gray-800 bg-opacity-50 rounded-lg p-4 border border-gray-600">
             <p class="text-xs text-gray-400 uppercase mb-1">Pairs Monitored</p>
@@ -140,6 +145,9 @@ async function fetchBotStatus() {
         const pairs = status.pairs_monitored || [];
         document.getElementById('pairs-count').textContent = pairs.length;
         document.getElementById('pairs-list').textContent = pairs.join(', ') || '--';
+
+        document.getElementById('active-strategy-name').textContent = status.active_strategy_name || '--';
+        document.getElementById('active-strategy-id').textContent = status.active_strategy || '--';
 
         document.getElementById('current-action').textContent = status.current_action || 'Stopped';
         document.getElementById('action-details').textContent = status.action_details || 'Bot not running';

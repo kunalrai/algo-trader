@@ -39,6 +39,10 @@ class UserBotStatus(db.Model):
     # Pairs being monitored (JSON string)
     pairs_monitored_json = db.Column(db.Text, default='[]')
 
+    # Active strategy
+    active_strategy = db.Column(db.String(100), default='combined')
+    active_strategy_name = db.Column(db.String(200), default='Combined Strategy')
+
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -91,7 +95,7 @@ class UserBotStatusTracker:
         """Get user's bot status from database"""
         return UserBotStatus.query.filter_by(user_id=self.user_id).first()
 
-    def start_bot(self, scan_interval: int, pairs: list):
+    def start_bot(self, scan_interval: int, pairs: list, strategy_id: str = None, strategy_name: str = None):
         """Mark bot as started for this user"""
         status = self._get_status_record()
         if status:
@@ -102,6 +106,10 @@ class UserBotStatusTracker:
             status.pairs_monitored = pairs
             status.current_action = 'Starting'
             status.action_details = 'Initializing trading bot...'
+            if strategy_id:
+                status.active_strategy = strategy_id
+            if strategy_name:
+                status.active_strategy_name = strategy_name
             db.session.commit()
 
     def stop_bot(self):
@@ -163,7 +171,9 @@ class UserBotStatusTracker:
             'last_decision_time': status.last_decision_time,
             'scan_interval': status.scan_interval,
             'pairs_monitored': status.pairs_monitored,
-            'next_scan_at': status.next_scan_at
+            'next_scan_at': status.next_scan_at,
+            'active_strategy': status.active_strategy,
+            'active_strategy_name': status.active_strategy_name
         }
 
         # Calculate uptime
