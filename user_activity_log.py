@@ -210,6 +210,30 @@ class UserActivityLog:
             'message': message
         })
 
+    def log_strategy_decision(self, pair: str, strategy_name: str, action: str,
+                               strength: float, reasons: List[str], indicators: Dict = None,
+                               metadata: Dict = None):
+        """Log detailed strategy decision for transparency"""
+        self.log_action('strategy_decision', {
+            'pair': pair,
+            'strategy_name': strategy_name,
+            'action': action,
+            'strength': round(strength, 4),
+            'reasons': reasons,
+            'indicators': indicators or {},
+            'metadata': metadata or {},
+            'decision_summary': f"{strategy_name} -> {action.upper()} ({strength:.1%} strength)"
+        })
+
+    def log_decision_flow(self, pair: str, step: str, result: str, details: Dict = None):
+        """Log individual steps in the decision flow for debugging"""
+        self.log_action('decision_flow', {
+            'pair': pair,
+            'step': step,
+            'result': result,
+            'details': details or {}
+        })
+
     def get_recent_activities(self, limit: int = 50, filter_type: str = None) -> List[Dict]:
         """
         Get recent activities for this user.

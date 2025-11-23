@@ -1099,16 +1099,28 @@ def list_strategies():
 @app.route('/api/strategies/active')
 @login_required
 def get_active_strategy():
-    """Get currently active strategy information"""
+    """Get currently active strategy information for the current user"""
     try:
         strategy_manager = get_strategy_manager()
+
+        # Get user's saved strategy preference
+        user_strategy = None
+        user_profile = UserProfile.query.filter_by(user_id=current_user.id).first()
+        if user_profile and user_profile.default_strategy:
+            user_strategy = user_profile.default_strategy
+
+        # If user has a saved strategy, set it as active for this request
+        if user_strategy and user_strategy != strategy_manager.get_active_strategy_id():
+            strategy_manager.set_active_strategy(user_strategy)
+
         active_info = strategy_manager.get_active_strategy_info()
 
         return jsonify({
             'success': True,
             'active_strategy': active_info,
             'strategy_system_enabled': config.STRATEGY_CONFIG.get('enabled', False),
-            'configured_strategy': config.STRATEGY_CONFIG.get('active_strategy', 'combined')
+            'configured_strategy': config.STRATEGY_CONFIG.get('active_strategy', 'combined'),
+            'user_strategy': user_strategy
         })
     except Exception as e:
         logger.error(f"Error getting active strategy: {e}")
@@ -1118,7 +1130,7 @@ def get_active_strategy():
 @app.route('/api/strategies/set', methods=['POST'])
 @login_required
 def set_active_strategy():
-    """Set the active trading strategy"""
+    """Set the active trading strategy for the current user"""
     try:
         data = request.get_json()
         strategy_id = data.get('strategy_id')
@@ -1136,14 +1148,29 @@ def set_active_strategy():
         success = strategy_manager.set_active_strategy(strategy_id, params)
 
         if success:
-            # Update config
+            # Update config (global fallback)
             config.STRATEGY_CONFIG['active_strategy'] = strategy_id
+
+            # Save user's strategy preference to database for per-user isolation
+            user_profile = UserProfile.query.filter_by(user_id=current_user.id).first()
+            if user_profile:
+                user_profile.default_strategy = strategy_id
+                db.session.commit()
+                logger.info(f"User {current_user.id}: Strategy preference saved to '{strategy_id}'")
+            else:
+                # Create profile if it doesn't exist
+                user_profile = UserProfile(user_id=current_user.id, default_strategy=strategy_id)
+                db.session.add(user_profile)
+                db.session.commit()
+                logger.info(f"User {current_user.id}: Created profile with strategy '{strategy_id}'")
+
             active_info = strategy_manager.get_active_strategy_info()
 
             return jsonify({
                 'success': True,
                 'message': f'Active strategy set to: {strategy_id}',
-                'active_strategy': active_info
+                'active_strategy': active_info,
+                'user_strategy_saved': True
             })
         else:
             return jsonify({

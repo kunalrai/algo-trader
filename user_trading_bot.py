@@ -140,7 +140,34 @@ class UserTradingBot:
         )
         self.wallet_manager = get_user_wallet_manager(self.user_id)
 
-        logger.info(f"User {self.user_id}: Components initialized (paper_mode={is_paper_mode})")
+        # Load user's saved strategy preference
+        user_strategy = 'combined'  # default
+        if profile and profile.default_strategy:
+            user_strategy = profile.default_strategy
+
+        # Set the user's strategy in the strategy manager
+        from strategies.strategy_manager import get_strategy_manager
+        strategy_manager = get_strategy_manager()
+        if strategy_manager.set_active_strategy(user_strategy):
+            logger.info(f"User {self.user_id}: Loaded saved strategy '{user_strategy}'")
+        else:
+            logger.warning(f"User {self.user_id}: Could not load strategy '{user_strategy}', using default")
+            strategy_manager.set_active_strategy('combined')
+
+        # Log activity
+        activity_log = get_user_activity_log(self.user_id)
+        activity_log.log_action(
+            action_type='bot_initialized',
+            details={
+                'user_id': self.user_id,
+                'strategy': user_strategy,
+                'paper_mode': is_paper_mode,
+                'trading_pairs': list(self.trading_pairs.keys()),
+                'risk_config': self.risk_config
+            }
+        )
+
+        logger.info(f"User {self.user_id}: Components initialized (paper_mode={is_paper_mode}, strategy={user_strategy})")
 
     def start(self) -> bool:
         """Start the trading bot for this user"""
@@ -243,6 +270,16 @@ class UserTradingBot:
         status_tracker = get_user_bot_status_tracker(self.user_id)
         activity_log = get_user_activity_log(self.user_id)
 
+        # Log cycle start
+        activity_log.log_action(
+            action_type='cycle_start',
+            details={
+                'cycle_number': self.total_cycles + 1,
+                'pairs_count': len(self.trading_pairs),
+                'pairs': list(self.trading_pairs.values())
+            }
+        )
+
         for pair_name, symbol in self.trading_pairs.items():
             if self._stop_event.is_set():
                 break
@@ -251,34 +288,84 @@ class UserTradingBot:
                 # Update status
                 status_tracker.update_action(f"Analyzing {pair_name}", f"Scanning {symbol}")
 
+                # Log scan start
+                activity_log.log_action(
+                    action_type='pair_scan_start',
+                    details={
+                        'pair': symbol,
+                        'pair_name': pair_name,
+                        'timeframes': list(self.timeframes.keys())
+                    }
+                )
+
                 # Generate signal
                 signal = self.signal_generator.generate_signal(symbol, self.timeframes)
 
                 if not signal:
+                    activity_log.log_action(
+                        action_type='no_signal',
+                        details={
+                            'pair': symbol,
+                            'reason': 'Signal generator returned no data'
+                        }
+                    )
                     continue
 
-                # Log signal
+                # Log detailed signal analysis with strategy info
                 activity_log.log_action(
                     action_type='signal_generated',
                     details={
                         'pair': symbol,
                         'action': signal['action'],
-                        'strength': signal['strength'],
-                        'price': signal.get('current_price', 0)
+                        'strength': round(signal['strength'], 4),
+                        'confidence': round(signal.get('confidence', signal['strength']), 4),
+                        'price': signal.get('current_price', 0),
+                        'strategy_name': signal.get('strategy_name', 'legacy'),
+                        'reasons': signal.get('reasons', []),
+                        'indicators': signal.get('indicators', {}),
+                        'atr': signal.get('atr'),
+                        'metadata': signal.get('strategy_metadata', {})
                     }
                 )
 
                 # Check if signal is strong enough
                 min_strength = self.trading_params.get('min_signal_strength', 0.6)
                 if signal['strength'] < min_strength:
+                    activity_log.log_action(
+                        action_type='signal_rejected',
+                        details={
+                            'pair': symbol,
+                            'action': signal['action'],
+                            'strength': round(signal['strength'], 4),
+                            'min_required': min_strength,
+                            'reason': f"Signal strength {signal['strength']:.2f} below threshold {min_strength}"
+                        }
+                    )
                     continue
 
                 # Check if we can open a position
                 if signal['action'] in ['long', 'short']:
                     self._process_signal(symbol, signal, activity_log, status_tracker)
+                else:
+                    activity_log.log_action(
+                        action_type='signal_flat',
+                        details={
+                            'pair': symbol,
+                            'action': signal['action'],
+                            'reason': 'Signal action is flat - no trade'
+                        }
+                    )
 
             except Exception as e:
                 logger.error(f"User {self.user_id}: Error processing {symbol}: {e}")
+                activity_log.log_action(
+                    action_type='error',
+                    details={
+                        'pair': symbol,
+                        'error_type': 'processing_error',
+                        'message': str(e)
+                    }
+                )
 
     def _process_signal(self, symbol: str, signal: Dict, activity_log, status_tracker):
         """Process a trading signal"""
@@ -286,8 +373,28 @@ class UserTradingBot:
         strength = signal['strength']
         current_price = signal.get('current_price', 0)
 
+        # Log decision process start
+        activity_log.log_action(
+            action_type='decision_start',
+            details={
+                'pair': symbol,
+                'proposed_action': action,
+                'signal_strength': round(strength, 4),
+                'price': current_price,
+                'strategy': signal.get('strategy_name', 'legacy')
+            }
+        )
+
         # Check if we already have a position for this pair
         if self.wallet_manager.has_position_for_pair(symbol):
+            activity_log.log_action(
+                action_type='decision_blocked',
+                details={
+                    'pair': symbol,
+                    'reason': 'Already have open position for this pair',
+                    'check': 'existing_position'
+                }
+            )
             logger.debug(f"User {self.user_id}: Already have position for {symbol}")
             return
 
@@ -295,18 +402,49 @@ class UserTradingBot:
         positions = self.wallet_manager.get_all_positions()
         max_positions = self.trading_params.get('max_open_positions', 3)
         if len(positions) >= max_positions:
+            activity_log.log_action(
+                action_type='decision_blocked',
+                details={
+                    'pair': symbol,
+                    'reason': f'Maximum positions limit reached ({len(positions)}/{max_positions})',
+                    'check': 'max_positions',
+                    'current_positions': len(positions),
+                    'max_allowed': max_positions
+                }
+            )
             logger.debug(f"User {self.user_id}: Max positions reached ({max_positions})")
             return
 
         # Get balance
         balance = self.wallet_manager.get_balance()
         if balance <= 0:
+            activity_log.log_action(
+                action_type='decision_blocked',
+                details={
+                    'pair': symbol,
+                    'reason': 'Insufficient balance',
+                    'check': 'balance',
+                    'balance': balance
+                }
+            )
             logger.warning(f"User {self.user_id}: Insufficient balance")
             return
 
+        # Log balance check passed
+        activity_log.log_action(
+            action_type='risk_check_passed',
+            details={
+                'pair': symbol,
+                'check': 'balance',
+                'available_balance': balance,
+                'open_positions': len(positions),
+                'max_positions': max_positions
+            }
+        )
+
         # Get ATR for dynamic stop loss
-        atr_value = None
-        if self.risk_config.get('use_atr_stop_loss'):
+        atr_value = signal.get('atr')  # Try from signal first
+        if atr_value is None and self.risk_config.get('use_atr_stop_loss'):
             try:
                 df = self.data_fetcher.fetch_candles(symbol, '1h', limit=50)
                 if not df.empty:
@@ -314,6 +452,33 @@ class UserTradingBot:
                     atr_value = df['ATR'].iloc[-1] if 'ATR' in df.columns else None
             except Exception as e:
                 logger.warning(f"User {self.user_id}: Could not calculate ATR: {e}")
+                activity_log.log_action(
+                    action_type='atr_calculation_failed',
+                    details={
+                        'pair': symbol,
+                        'error': str(e)
+                    }
+                )
+
+        # Calculate position sizing details
+        leverage = self.risk_config.get('leverage', 10)
+        max_position_pct = self.risk_config.get('max_position_size_percent', 10)
+        stop_loss_pct = self.risk_config.get('stop_loss_percent', 2)
+        take_profit_pct = self.risk_config.get('take_profit_percent', 4)
+
+        activity_log.log_action(
+            action_type='position_sizing',
+            details={
+                'pair': symbol,
+                'balance': balance,
+                'leverage': leverage,
+                'max_position_pct': max_position_pct,
+                'stop_loss_pct': stop_loss_pct,
+                'take_profit_pct': take_profit_pct,
+                'atr_value': atr_value,
+                'use_atr_stop_loss': self.risk_config.get('use_atr_stop_loss', False)
+            }
+        )
 
         # Update status
         status_tracker.update_action(
@@ -342,7 +507,11 @@ class UserTradingBot:
                     'size': result['position_size'],
                     'take_profit': result['take_profit'],
                     'stop_loss': result['stop_loss'],
-                    'margin': result.get('margin', 0)
+                    'margin': result.get('margin', 0),
+                    'leverage': leverage,
+                    'signal_strength': round(strength, 4),
+                    'strategy': signal.get('strategy_name', 'legacy'),
+                    'reasons': signal.get('reasons', [])
                 }
             )
             logger.info(
@@ -350,6 +519,15 @@ class UserTradingBot:
                 f"@ ${result['entry_price']:.2f}"
             )
         else:
+            activity_log.log_action(
+                action_type='position_open_failed',
+                details={
+                    'pair': symbol,
+                    'side': action,
+                    'price': current_price,
+                    'reason': 'Order manager returned no result'
+                }
+            )
             logger.warning(f"User {self.user_id}: Failed to open position for {symbol}")
 
 

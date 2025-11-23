@@ -118,6 +118,22 @@ class StrategyManager:
         """
         return self._active_strategy
 
+    def get_active_strategy_id(self) -> Optional[str]:
+        """
+        Get the ID of the currently active strategy
+
+        Returns:
+            Strategy ID string or None
+        """
+        if not self._active_strategy:
+            return None
+
+        for strategy_id, strategy in self._strategies.items():
+            if strategy.name == self._active_strategy.name:
+                return strategy_id
+
+        return None
+
     def get_strategy(self, strategy_id: str) -> Optional[BaseStrategy]:
         """
         Get a specific strategy by ID
