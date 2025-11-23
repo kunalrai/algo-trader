@@ -77,7 +77,7 @@ TRADING_PARAMS = {
 
 # Strategy System Configuration
 STRATEGY_CONFIG = {
-    "enabled": False,                  # Enable pluggable strategy system (False = legacy mode)
+    "enabled": True,                   # Enable pluggable strategy system (False = legacy mode)
     "active_strategy": "combined",     # Active strategy ID: ema_crossover, macd, rsi, combined
 
     # Strategy-specific parameters (overrides)

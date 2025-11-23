@@ -4,11 +4,15 @@ Central registry and manager for all trading strategies
 """
 
 from typing import Dict, Optional, List
+import logging
 from strategies.base_strategy import BaseStrategy
 from strategies.ema_crossover_strategy import EMACrossoverStrategy
 from strategies.macd_strategy import MACDStrategy
 from strategies.rsi_strategy import RSIStrategy
 from strategies.combined_strategy import CombinedStrategy
+from strategies.support_resistance_strategy import SupportResistanceStrategy
+
+logger = logging.getLogger(__name__)
 
 
 class StrategyManager:
@@ -19,6 +23,7 @@ class StrategyManager:
         self._strategies: Dict[str, BaseStrategy] = {}
         self._active_strategy: Optional[BaseStrategy] = None
         self._register_builtin_strategies()
+        self._load_custom_strategies()
 
     def _register_builtin_strategies(self):
         """Register all built-in strategies"""
@@ -27,23 +32,57 @@ class StrategyManager:
         self.register_strategy('macd', MACDStrategy())
         self.register_strategy('rsi', RSIStrategy())
         self.register_strategy('combined', CombinedStrategy())
+        self.register_strategy('support_resistance', SupportResistanceStrategy())
 
         # Set default active strategy
         self.set_active_strategy('combined')
 
-    def register_strategy(self, strategy_id: str, strategy: BaseStrategy):
+    def _load_custom_strategies(self):
+        """Load all custom strategies from the custom directory"""
+        try:
+            from strategies.custom_strategy_loader import get_custom_strategy_loader
+
+            loader = get_custom_strategy_loader()
+            custom_strategies = loader.load_all_custom_strategies()
+
+            for strategy_id, strategy_class in custom_strategies.items():
+                try:
+                    # Instantiate the strategy
+                    strategy_instance = strategy_class()
+                    self.register_strategy(strategy_id, strategy_instance)
+                    logger.info(f"Loaded custom strategy: {strategy_id}")
+                except Exception as e:
+                    logger.error(f"Failed to instantiate custom strategy {strategy_id}: {e}")
+
+        except Exception as e:
+            logger.warning(f"Could not load custom strategies: {e}")
+
+    def reload_custom_strategies(self):
+        """Reload all custom strategies (useful after upload)"""
+        logger.info("Reloading custom strategies...")
+        self._load_custom_strategies()
+
+    def register_strategy(self, strategy_id: str, strategy):
         """
         Register a new strategy
 
         Args:
             strategy_id: Unique identifier for the strategy
-            strategy: Strategy instance
+            strategy: Strategy instance or class
         """
+        # If it's a class, instantiate it
+        if isinstance(strategy, type):
+            try:
+                strategy = strategy()
+            except Exception as e:
+                logger.error(f"Failed to instantiate strategy {strategy_id}: {e}")
+                return
+
         if not isinstance(strategy, BaseStrategy):
             raise ValueError("Strategy must inherit from BaseStrategy")
 
         self._strategies[strategy_id] = strategy
-        print(f"Registered strategy: {strategy_id} ({strategy.name})")
+        logger.info(f"Registered strategy: {strategy_id} ({strategy.name})")
 
     def set_active_strategy(self, strategy_id: str, params: Dict = None) -> bool:
         """
@@ -78,6 +117,22 @@ class StrategyManager:
             Active strategy instance or None
         """
         return self._active_strategy
+
+    def get_active_strategy_id(self) -> Optional[str]:
+        """
+        Get the ID of the currently active strategy
+
+        Returns:
+            Strategy ID string or None
+        """
+        if not self._active_strategy:
+            return None
+
+        for strategy_id, strategy in self._strategies.items():
+            if strategy.name == self._active_strategy.name:
+                return strategy_id
+
+        return None
 
     def get_strategy(self, strategy_id: str) -> Optional[BaseStrategy]:
         """
@@ -160,7 +215,8 @@ class StrategyManager:
             'ema_crossover': EMACrossoverStrategy,
             'macd': MACDStrategy,
             'rsi': RSIStrategy,
-            'combined': CombinedStrategy
+            'combined': CombinedStrategy,
+            'support_resistance': SupportResistanceStrategy
         }
 
         if strategy_type not in strategy_classes:

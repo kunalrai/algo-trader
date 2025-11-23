@@ -944,9 +944,24 @@ function renderActivityItem(activity) {
         'analyzing_pair': '🔍',
         'market_scan': '📊',
         'signal_analysis': '📈',
+        'signal_generated': '📊',
+        'signal_rejected': '🚫',
+        'signal_flat': '➖',
+        'no_signal': '⏸️',
+        'pair_scan_start': '🔎',
+        'cycle_start': '🔄',
         'position_decision': '💭',
-        'position_opened': '✅',
+        'decision_start': '🤔',
+        'decision_blocked': '⛔',
+        'position_sizing': '📐',
+        'risk_check_passed': '✅',
+        'atr_calculation_failed': '⚠️',
+        'position_opened': '🟢',
+        'position_open_failed': '❌',
         'position_closed': '🔒',
+        'bot_started': '▶️',
+        'bot_stopped': '⏹️',
+        'bot_initialized': '🤖',
         'risk_check': '⚠️',
         'error': '❌'
     };
@@ -1097,8 +1112,8 @@ function renderActivityItem(activity) {
                     <div class="flex items-center gap-3">
                         <span class="text-xl">${icon}</span>
                         <div>
-                            <p class="text-sm font-semibold text-red-400">{activity.error_type}</p>
-                            <p class="text-xs text-gray-300 mt-1">${activity.message}</p>
+                            <p class="text-sm font-semibold text-red-400">Error: ${activity.error_type || 'Unknown'}</p>
+                            <p class="text-xs text-gray-300 mt-1">${activity.message || 'An error occurred during trading operations'}</p>
                         </div>
                     </div>
                     <span class="text-xs text-gray-500">${time}</span>
@@ -1107,13 +1122,406 @@ function renderActivityItem(activity) {
         `;
     }
 
-    // Generic fallback
+    // Pair Scan Start - Beginning analysis of a trading pair
+    if (activity.action_type === 'pair_scan_start') {
+        const timeframes = activity.timeframes ? activity.timeframes.join(', ') : 'multiple timeframes';
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600 border-l-4 border-l-blue-500">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-blue-400">Starting Analysis: ${activity.pair || activity.pair_name}</p>
+                            <p class="text-xs text-gray-400 mt-1">Scanning market data across ${timeframes} to identify trading opportunities</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Signal Generated - A trading signal was created
+    if (activity.action_type === 'signal_generated') {
+        const actionColor = activity.action === 'long' ? 'text-green-400' : activity.action === 'short' ? 'text-red-400' : 'text-gray-400';
+        const strengthPct = ((activity.strength || 0) * 100).toFixed(1);
+        const strengthColor = (activity.strength || 0) >= 0.7 ? 'text-green-400' : (activity.strength || 0) >= 0.5 ? 'text-yellow-400' : 'text-red-400';
+        const price = activity.price ? `$${parseFloat(activity.price).toFixed(2)}` : 'N/A';
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 border-l-4 border-l-green-500">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">${icon}</span>
+                        <div>
+                            <p class="font-semibold ${actionColor} text-lg">
+                                Signal Generated: ${(activity.action || 'Unknown').toUpperCase()} on ${activity.pair}
+                            </p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Strategy: <span class="text-purple-400">${activity.strategy_name || 'Legacy'}</span> |
+                                Price: <span class="text-white">${price}</span> |
+                                Strength: <span class="${strengthColor}">${strengthPct}%</span>
+                            </p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${time}</span>
+                </div>
+                ${activity.reasons && activity.reasons.length > 0 ? `
+                <div class="ml-11 text-xs text-gray-300 space-y-1 mt-2 bg-gray-800 rounded p-2">
+                    <p class="text-gray-500 mb-1">Signal Reasoning:</p>
+                    ${activity.reasons.map(r => `<div class="flex items-start gap-2"><span class="text-green-400">•</span><span>${r}</span></div>`).join('')}
+                </div>` : ''}
+            </div>
+        `;
+    }
+
+    // Signal Rejected - Signal was too weak
+    if (activity.action_type === 'signal_rejected') {
+        const strengthPct = ((activity.strength || 0) * 100).toFixed(1);
+        const minRequired = ((activity.min_required || 0.6) * 100).toFixed(0);
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 border-l-4 border-l-yellow-500">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-yellow-400">Signal Rejected: ${activity.pair}</p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                ${(activity.action || 'Signal').toUpperCase()} signal strength of <span class="text-red-400">${strengthPct}%</span>
+                                is below the minimum threshold of <span class="text-green-400">${minRequired}%</span>
+                            </p>
+                            <p class="text-xs text-gray-500 mt-1">${activity.reason || 'Signal not strong enough to trade'}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Signal Flat - Market is neutral
+    if (activity.action_type === 'signal_flat') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600 border-l-4 border-l-gray-500">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-gray-400">Market Neutral: ${activity.pair}</p>
+                            <p class="text-xs text-gray-500 mt-1">No clear directional bias detected - waiting for better opportunity</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // No Signal - Signal generator returned no data
+    if (activity.action_type === 'no_signal') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600 border-l-4 border-l-gray-500">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-gray-400">No Signal: ${activity.pair}</p>
+                            <p class="text-xs text-gray-500 mt-1">${activity.reason || 'Insufficient data or conditions not met for signal generation'}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Decision Start - Beginning position decision process
+    if (activity.action_type === 'decision_start') {
+        const actionColor = activity.proposed_action === 'long' ? 'text-green-400' : 'text-red-400';
+        const strengthPct = ((activity.signal_strength || 0) * 100).toFixed(1);
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600 border-l-4 border-l-purple-500">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-purple-400">Evaluating Trade: ${activity.pair}</p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Considering <span class="${actionColor}">${(activity.proposed_action || '').toUpperCase()}</span> position
+                                at <span class="text-white">$${(activity.price || 0).toFixed(2)}</span>
+                                with <span class="text-blue-400">${strengthPct}%</span> signal strength
+                            </p>
+                            <p class="text-xs text-gray-500 mt-1">Strategy: ${activity.strategy || 'Legacy'} | Running risk checks...</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Decision Blocked - Trade was blocked by risk management
+    if (activity.action_type === 'decision_blocked') {
+        const checkLabels = {
+            'existing_position': 'Duplicate Position Check',
+            'max_positions': 'Position Limit Check',
+            'balance': 'Balance Check'
+        };
+        const checkLabel = checkLabels[activity.check] || 'Risk Check';
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 border-l-4 border-l-red-500">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-semibold text-red-400">Trade Blocked: ${activity.pair}</p>
+                            <p class="text-xs text-gray-300 mt-1">${activity.reason || 'Position could not be opened'}</p>
+                            <p class="text-xs text-gray-500 mt-1">
+                                Failed: <span class="text-yellow-400">${checkLabel}</span>
+                                ${activity.current_positions !== undefined ? ` | Current positions: ${activity.current_positions}/${activity.max_allowed}` : ''}
+                                ${activity.balance !== undefined ? ` | Balance: $${activity.balance.toFixed(2)}` : ''}
+                            </p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Risk Check Passed
+    if (activity.action_type === 'risk_check_passed') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600 border-l-4 border-l-green-500">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-green-400">Risk Checks Passed: ${activity.pair}</p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Balance: <span class="text-white">$${(activity.available_balance || 0).toFixed(2)}</span> |
+                                Open Positions: <span class="text-blue-400">${activity.open_positions || 0}/${activity.max_positions || 3}</span>
+                            </p>
+                            <p class="text-xs text-gray-500 mt-1">All risk management checks passed - proceeding to position sizing</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Position Sizing
+    if (activity.action_type === 'position_sizing') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600 border-l-4 border-l-blue-500">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-blue-400">Calculating Position Size: ${activity.pair}</p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Balance: <span class="text-white">$${(activity.balance || 0).toFixed(2)}</span> |
+                                Max Size: <span class="text-yellow-400">${activity.max_position_pct || 10}%</span> |
+                                Leverage: <span class="text-purple-400">${activity.leverage || 10}x</span>
+                            </p>
+                            <p class="text-xs text-gray-500 mt-1">
+                                TP: ${activity.take_profit_pct || 4}% | SL: ${activity.stop_loss_pct || 2}%
+                                ${activity.use_atr_stop_loss ? `| ATR: ${activity.atr_value ? activity.atr_value.toFixed(4) : 'calculating...'}` : ''}
+                            </p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Position Open Failed
+    if (activity.action_type === 'position_open_failed') {
+        return `
+            <div class="bg-red-900 bg-opacity-20 rounded-lg p-3 border border-red-700">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-semibold text-red-400">Failed to Open Position: ${activity.pair}</p>
+                            <p class="text-xs text-gray-300 mt-1">
+                                Attempted ${(activity.side || '').toUpperCase()} at $${(activity.price || 0).toFixed(2)}
+                            </p>
+                            <p class="text-xs text-gray-500 mt-1">${activity.reason || 'Position could not be opened - check order manager logs'}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // ATR Calculation Failed
+    if (activity.action_type === 'atr_calculation_failed') {
+        return `
+            <div class="bg-yellow-900 bg-opacity-20 rounded-lg p-3 border border-yellow-700">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-yellow-400">ATR Calculation Warning: ${activity.pair}</p>
+                            <p class="text-xs text-gray-300 mt-1">Could not calculate Average True Range for dynamic stop loss</p>
+                            <p class="text-xs text-gray-500 mt-1">${activity.error || 'Using default stop loss percentage instead'}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Cycle Start
+    if (activity.action_type === 'cycle_start') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600 border-l-4 border-l-cyan-500">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-cyan-400">Trading Cycle Started</p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Scanning ${activity.pairs_count || 'configured'} trading pairs for opportunities
+                            </p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Bot Started
+    if (activity.action_type === 'bot_started') {
+        return `
+            <div class="bg-green-900 bg-opacity-20 rounded-lg p-3 border border-green-700">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-semibold text-green-400">Trading Bot Started</p>
+                            <p class="text-xs text-gray-300 mt-1">Bot is now actively scanning for trading opportunities</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Bot Stopped
+    if (activity.action_type === 'bot_stopped') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600 border-l-4 border-l-gray-500">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-400">Trading Bot Stopped</p>
+                            <p class="text-xs text-gray-300 mt-1">Bot has been stopped - no new trades will be opened</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Bot Initialized
+    if (activity.action_type === 'bot_initialized') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600 border-l-4 border-l-blue-500">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm font-medium text-blue-400">Trading Bot Initialized</p>
+                            <p class="text-xs text-gray-400 mt-1">Bot configuration loaded and ready to start</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Strategy Decision - Detailed strategy output
+    if (activity.action_type === 'strategy_decision') {
+        const actionColor = activity.action === 'long' ? 'text-green-400' : activity.action === 'short' ? 'text-red-400' : 'text-gray-400';
+        const strengthPct = ((activity.strength || 0) * 100).toFixed(1);
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 border-l-4 border-l-purple-500">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">🎯</span>
+                        <div>
+                            <p class="font-semibold ${actionColor} text-lg">
+                                Strategy Decision: ${(activity.action || 'Unknown').toUpperCase()}
+                            </p>
+                            <p class="text-xs text-gray-400">
+                                ${activity.pair} | Strategy: <span class="text-purple-400">${activity.strategy_name || 'Unknown'}</span> |
+                                Strength: <span class="text-blue-400">${strengthPct}%</span>
+                            </p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${time}</span>
+                </div>
+                ${activity.decision_summary ? `<p class="ml-11 text-xs text-gray-300 mb-2">${activity.decision_summary}</p>` : ''}
+                ${activity.reasons && activity.reasons.length > 0 ? `
+                <div class="ml-11 text-xs text-gray-300 space-y-1 bg-gray-800 rounded p-2">
+                    ${activity.reasons.map(r => `<div class="flex items-start gap-2"><span class="text-purple-400">•</span><span>${r}</span></div>`).join('')}
+                </div>` : ''}
+            </div>
+        `;
+    }
+
+    // Decision Flow - Step-by-step decision logging
+    if (activity.action_type === 'decision_flow') {
+        const resultColor = activity.result === 'passed' || activity.result === 'success' ? 'text-green-400' :
+                          activity.result === 'failed' || activity.result === 'blocked' ? 'text-red-400' : 'text-gray-400';
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">📋</span>
+                        <div>
+                            <p class="text-sm font-medium text-gray-300">${activity.pair}: ${activity.step || 'Decision Step'}</p>
+                            <p class="text-xs ${resultColor} mt-1">Result: ${activity.result || 'Unknown'}</p>
+                            ${activity.details && Object.keys(activity.details).length > 0 ?
+                                `<p class="text-xs text-gray-500 mt-1">${JSON.stringify(activity.details)}</p>` : ''}
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Generic fallback - now with more detail
+    const actionType = activity.action_type || 'unknown';
+    const formattedType = actionType.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+
     return `
         <div class="bg-gray-700 rounded-lg p-3 border border-gray-600">
-            <div class="flex justify-between items-center">
+            <div class="flex justify-between items-start">
                 <div class="flex items-center gap-3">
                     <span class="text-xl">${icon}</span>
-                    <p class="text-sm text-gray-300">${activity.action_type}</p>
+                    <div>
+                        <p class="text-sm font-medium text-gray-300">${formattedType}</p>
+                        ${activity.pair ? `<p class="text-xs text-gray-500">Pair: ${activity.pair}</p>` : ''}
+                        ${activity.reason ? `<p class="text-xs text-gray-400 mt-1">${activity.reason}</p>` : ''}
+                    </div>
                 </div>
                 <span class="text-xs text-gray-500">${time}</span>
             </div>

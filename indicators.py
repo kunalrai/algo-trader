@@ -1,6 +1,6 @@
 """
 Technical Indicators Module
-Implements EMA, MACD, RSI calculations
+Uses pandas_ta library for robust indicator calculations
 """
 
 import pandas as pd
@@ -8,11 +8,17 @@ import numpy as np
 from typing import Dict, List
 import logging
 
+try:
+    import pandas_ta as ta
+    PANDAS_TA_AVAILABLE = True
+except ImportError:
+    PANDAS_TA_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
 class TechnicalIndicators:
-    """Calculate technical indicators for trading signals"""
+    """Calculate technical indicators for trading signals using pandas_ta"""
 
     @staticmethod
     def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
@@ -26,19 +32,19 @@ class TechnicalIndicators:
         Returns:
             Series with ATR values
         """
+        if PANDAS_TA_AVAILABLE:
+            return ta.atr(df['high'], df['low'], df['close'], length=period)
+
+        # Fallback implementation
         high = df['high']
         low = df['low']
         close = df['close']
 
-        # Calculate True Range components
-        tr1 = high - low  # Current high - current low
-        tr2 = abs(high - close.shift(1))  # Current high - previous close
-        tr3 = abs(low - close.shift(1))   # Current low - previous close
+        tr1 = high - low
+        tr2 = abs(high - close.shift(1))
+        tr3 = abs(low - close.shift(1))
 
-        # True Range is the max of the three
         true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-
-        # ATR is the exponential moving average of True Range
         atr = true_range.ewm(span=period, adjust=False).mean()
 
         return atr
@@ -56,7 +62,28 @@ class TechnicalIndicators:
         Returns:
             Series with EMA values
         """
+        if PANDAS_TA_AVAILABLE:
+            return ta.ema(df[column], length=period)
+
         return df[column].ewm(span=period, adjust=False).mean()
+
+    @staticmethod
+    def calculate_sma(df: pd.DataFrame, period: int, column: str = 'close') -> pd.Series:
+        """
+        Calculate Simple Moving Average
+
+        Args:
+            df: DataFrame with price data
+            period: SMA period
+            column: Column to calculate SMA on
+
+        Returns:
+            Series with SMA values
+        """
+        if PANDAS_TA_AVAILABLE:
+            return ta.sma(df[column], length=period)
+
+        return df[column].rolling(window=period).mean()
 
     @staticmethod
     def calculate_all_emas(df: pd.DataFrame, periods: List[int]) -> pd.DataFrame:
@@ -93,15 +120,19 @@ class TechnicalIndicators:
         """
         result_df = df.copy()
 
-        # Calculate MACD line
+        if PANDAS_TA_AVAILABLE:
+            macd_df = ta.macd(df['close'], fast=fast, slow=slow, signal=signal)
+            if macd_df is not None and not macd_df.empty:
+                result_df['MACD'] = macd_df[f'MACD_{fast}_{slow}_{signal}']
+                result_df['MACD_signal'] = macd_df[f'MACDs_{fast}_{slow}_{signal}']
+                result_df['MACD_hist'] = macd_df[f'MACDh_{fast}_{slow}_{signal}']
+                return result_df
+
+        # Fallback implementation
         ema_fast = result_df['close'].ewm(span=fast, adjust=False).mean()
         ema_slow = result_df['close'].ewm(span=slow, adjust=False).mean()
         result_df['MACD'] = ema_fast - ema_slow
-
-        # Calculate signal line
         result_df['MACD_signal'] = result_df['MACD'].ewm(span=signal, adjust=False).mean()
-
-        # Calculate histogram
         result_df['MACD_hist'] = result_df['MACD'] - result_df['MACD_signal']
 
         return result_df
@@ -119,15 +150,17 @@ class TechnicalIndicators:
         Returns:
             Series with RSI values
         """
-        delta = df[column].diff()
+        if PANDAS_TA_AVAILABLE:
+            return ta.rsi(df[column], length=period)
 
+        # Fallback implementation
+        delta = df[column].diff()
         gain = delta.where(delta > 0, 0)
         loss = -delta.where(delta < 0, 0)
 
         avg_gain = gain.rolling(window=period, min_periods=period).mean()
         avg_loss = loss.rolling(window=period, min_periods=period).mean()
 
-        # For subsequent values, use exponential moving average
         for i in range(period, len(df)):
             avg_gain.iloc[i] = (avg_gain.iloc[i-1] * (period - 1) + gain.iloc[i]) / period
             avg_loss.iloc[i] = (avg_loss.iloc[i-1] * (period - 1) + loss.iloc[i]) / period
@@ -138,8 +171,148 @@ class TechnicalIndicators:
         return rsi
 
     @staticmethod
+    def calculate_bollinger_bands(df: pd.DataFrame, period: int = 20, std_dev: float = 2.0) -> pd.DataFrame:
+        """
+        Calculate Bollinger Bands
+
+        Args:
+            df: DataFrame with price data
+            period: BB period (default 20)
+            std_dev: Standard deviation multiplier (default 2.0)
+
+        Returns:
+            DataFrame with BB columns added
+        """
+        result_df = df.copy()
+
+        if PANDAS_TA_AVAILABLE:
+            bb_df = ta.bbands(df['close'], length=period, std=std_dev)
+            if bb_df is not None and not bb_df.empty:
+                result_df['BB_lower'] = bb_df[f'BBL_{period}_{std_dev}']
+                result_df['BB_middle'] = bb_df[f'BBM_{period}_{std_dev}']
+                result_df['BB_upper'] = bb_df[f'BBU_{period}_{std_dev}']
+                result_df['BB_bandwidth'] = bb_df[f'BBB_{period}_{std_dev}']
+                result_df['BB_percent'] = bb_df[f'BBP_{period}_{std_dev}']
+                return result_df
+
+        # Fallback implementation
+        sma = df['close'].rolling(window=period).mean()
+        std = df['close'].rolling(window=period).std()
+        result_df['BB_middle'] = sma
+        result_df['BB_upper'] = sma + (std * std_dev)
+        result_df['BB_lower'] = sma - (std * std_dev)
+        result_df['BB_bandwidth'] = (result_df['BB_upper'] - result_df['BB_lower']) / result_df['BB_middle']
+        result_df['BB_percent'] = (df['close'] - result_df['BB_lower']) / (result_df['BB_upper'] - result_df['BB_lower'])
+
+        return result_df
+
+    @staticmethod
+    def calculate_stochastic(df: pd.DataFrame, k_period: int = 14, d_period: int = 3) -> pd.DataFrame:
+        """
+        Calculate Stochastic Oscillator
+
+        Args:
+            df: DataFrame with OHLCV data
+            k_period: %K period (default 14)
+            d_period: %D period (default 3)
+
+        Returns:
+            DataFrame with Stochastic columns added
+        """
+        result_df = df.copy()
+
+        if PANDAS_TA_AVAILABLE:
+            stoch_df = ta.stoch(df['high'], df['low'], df['close'], k=k_period, d=d_period)
+            if stoch_df is not None and not stoch_df.empty:
+                result_df['STOCH_K'] = stoch_df[f'STOCHk_{k_period}_{d_period}_3']
+                result_df['STOCH_D'] = stoch_df[f'STOCHd_{k_period}_{d_period}_3']
+                return result_df
+
+        # Fallback implementation
+        low_min = df['low'].rolling(window=k_period).min()
+        high_max = df['high'].rolling(window=k_period).max()
+        result_df['STOCH_K'] = 100 * (df['close'] - low_min) / (high_max - low_min)
+        result_df['STOCH_D'] = result_df['STOCH_K'].rolling(window=d_period).mean()
+
+        return result_df
+
+    @staticmethod
+    def calculate_adx(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+        """
+        Calculate Average Directional Index (ADX)
+
+        Args:
+            df: DataFrame with OHLCV data
+            period: ADX period (default 14)
+
+        Returns:
+            DataFrame with ADX columns added
+        """
+        result_df = df.copy()
+
+        if PANDAS_TA_AVAILABLE:
+            adx_df = ta.adx(df['high'], df['low'], df['close'], length=period)
+            if adx_df is not None and not adx_df.empty:
+                result_df['ADX'] = adx_df[f'ADX_{period}']
+                result_df['DI_plus'] = adx_df[f'DMP_{period}']
+                result_df['DI_minus'] = adx_df[f'DMN_{period}']
+                return result_df
+
+        # Fallback: return empty columns (ADX calculation is complex)
+        result_df['ADX'] = np.nan
+        result_df['DI_plus'] = np.nan
+        result_df['DI_minus'] = np.nan
+        logger.warning("ADX calculation requires pandas_ta - install with: pip install pandas_ta")
+
+        return result_df
+
+    @staticmethod
+    def calculate_vwap(df: pd.DataFrame) -> pd.Series:
+        """
+        Calculate Volume Weighted Average Price (VWAP)
+
+        Args:
+            df: DataFrame with OHLCV data
+
+        Returns:
+            Series with VWAP values
+        """
+        if PANDAS_TA_AVAILABLE:
+            return ta.vwap(df['high'], df['low'], df['close'], df['volume'])
+
+        # Fallback implementation
+        typical_price = (df['high'] + df['low'] + df['close']) / 3
+        return (typical_price * df['volume']).cumsum() / df['volume'].cumsum()
+
+    @staticmethod
+    def calculate_obv(df: pd.DataFrame) -> pd.Series:
+        """
+        Calculate On-Balance Volume (OBV)
+
+        Args:
+            df: DataFrame with OHLCV data
+
+        Returns:
+            Series with OBV values
+        """
+        if PANDAS_TA_AVAILABLE:
+            return ta.obv(df['close'], df['volume'])
+
+        # Fallback implementation
+        obv = [0]
+        for i in range(1, len(df)):
+            if df['close'].iloc[i] > df['close'].iloc[i-1]:
+                obv.append(obv[-1] + df['volume'].iloc[i])
+            elif df['close'].iloc[i] < df['close'].iloc[i-1]:
+                obv.append(obv[-1] - df['volume'].iloc[i])
+            else:
+                obv.append(obv[-1])
+        return pd.Series(obv, index=df.index)
+
+    @staticmethod
     def add_all_indicators(df: pd.DataFrame, ema_periods: List[int],
-                          macd_params: Dict, rsi_period: int) -> pd.DataFrame:
+                          macd_params: Dict, rsi_period: int,
+                          include_extended: bool = False) -> pd.DataFrame:
         """
         Add all technical indicators to DataFrame
 
@@ -148,6 +321,7 @@ class TechnicalIndicators:
             ema_periods: List of EMA periods
             macd_params: MACD parameters dict
             rsi_period: RSI period
+            include_extended: Include extended indicators (BB, Stochastic, ADX, VWAP, OBV)
 
         Returns:
             DataFrame with all indicators added
@@ -174,6 +348,25 @@ class TechnicalIndicators:
             # Add RSI
             result_df['RSI'] = TechnicalIndicators.calculate_rsi(result_df, rsi_period)
 
+            # Add ATR
+            result_df['ATR'] = TechnicalIndicators.calculate_atr(result_df)
+
+            # Extended indicators (optional)
+            if include_extended:
+                # Bollinger Bands
+                result_df = TechnicalIndicators.calculate_bollinger_bands(result_df)
+
+                # Stochastic
+                result_df = TechnicalIndicators.calculate_stochastic(result_df)
+
+                # ADX
+                result_df = TechnicalIndicators.calculate_adx(result_df)
+
+                # Volume indicators
+                if 'volume' in result_df.columns:
+                    result_df['VWAP'] = TechnicalIndicators.calculate_vwap(result_df)
+                    result_df['OBV'] = TechnicalIndicators.calculate_obv(result_df)
+
             logger.debug(f"Added all indicators to DataFrame with {len(result_df)} rows")
 
         except Exception as e:
@@ -197,10 +390,6 @@ class TechnicalIndicators:
 
         try:
             last_row = df.iloc[-1]
-
-            # Check EMA alignment
-            # Bullish: EMA9 > EMA15 > EMA20 > EMA50
-            # Bearish: EMA9 < EMA15 < EMA20 < EMA50
 
             if ('EMA_9' in df.columns and 'EMA_15' in df.columns and
                 'EMA_20' in df.columns and 'EMA_50' in df.columns):
@@ -235,12 +424,10 @@ class TechnicalIndicators:
             current = df.iloc[-1]
             previous = df.iloc[-2]
 
-            # Bullish crossover: MACD crosses above signal
             if (previous['MACD'] <= previous['MACD_signal'] and
                 current['MACD'] > current['MACD_signal']):
                 return 'bullish'
 
-            # Bearish crossover: MACD crosses below signal
             if (previous['MACD'] >= previous['MACD_signal'] and
                 current['MACD'] < current['MACD_signal']):
                 return 'bearish'
@@ -280,6 +467,64 @@ class TechnicalIndicators:
         return 'neutral'
 
     @staticmethod
+    def get_stochastic_signal(df: pd.DataFrame, overbought: float = 80, oversold: float = 20) -> str:
+        """
+        Get Stochastic signal
+
+        Args:
+            df: DataFrame with Stochastic indicator
+            overbought: Overbought threshold
+            oversold: Oversold threshold
+
+        Returns:
+            'overbought', 'oversold', or 'neutral'
+        """
+        if df.empty or 'STOCH_K' not in df.columns:
+            return 'neutral'
+
+        try:
+            current_k = df.iloc[-1]['STOCH_K']
+            current_d = df.iloc[-1]['STOCH_D']
+
+            if current_k >= overbought and current_d >= overbought:
+                return 'overbought'
+            elif current_k <= oversold and current_d <= oversold:
+                return 'oversold'
+
+        except Exception as e:
+            logger.error(f"Error getting Stochastic signal: {e}")
+
+        return 'neutral'
+
+    @staticmethod
+    def get_bb_signal(df: pd.DataFrame) -> str:
+        """
+        Get Bollinger Bands signal
+
+        Args:
+            df: DataFrame with Bollinger Bands indicators
+
+        Returns:
+            'upper_touch', 'lower_touch', or 'neutral'
+        """
+        if df.empty or 'BB_upper' not in df.columns:
+            return 'neutral'
+
+        try:
+            last_row = df.iloc[-1]
+            close = last_row['close']
+
+            if close >= last_row['BB_upper']:
+                return 'upper_touch'
+            elif close <= last_row['BB_lower']:
+                return 'lower_touch'
+
+        except Exception as e:
+            logger.error(f"Error getting BB signal: {e}")
+
+        return 'neutral'
+
+    @staticmethod
     def calculate_support_resistance(df: pd.DataFrame, lookback: int = 20, num_levels: int = 3) -> Dict:
         """
         Calculate support and resistance levels using pivot points and local extrema
@@ -303,26 +548,21 @@ class TechnicalIndicators:
             recent_df = df.tail(lookback).copy()
             current_price = float(df.iloc[-1]['close'])
 
-            # Find local maxima (resistance) and minima (support)
             highs = recent_df['high'].values
             lows = recent_df['low'].values
 
-            # Detect pivot points
             resistance_points = []
             support_points = []
 
             for i in range(2, len(recent_df) - 2):
-                # Resistance: high[i] is higher than surrounding highs
                 if (highs[i] > highs[i-1] and highs[i] > highs[i-2] and
                     highs[i] > highs[i+1] and highs[i] > highs[i+2]):
                     resistance_points.append(highs[i])
 
-                # Support: low[i] is lower than surrounding lows
                 if (lows[i] < lows[i-1] and lows[i] < lows[i-2] and
                     lows[i] < lows[i+1] and lows[i] < lows[i+2]):
                     support_points.append(lows[i])
 
-            # Cluster similar levels (within 0.5% of each other)
             def cluster_levels(levels, tolerance=0.005):
                 if not levels:
                     return []
@@ -343,15 +583,12 @@ class TechnicalIndicators:
 
                 return clusters
 
-            # Cluster and filter levels
             clustered_resistance = cluster_levels(resistance_points)
             clustered_support = cluster_levels(support_points)
 
-            # Filter to get levels above/below current price
             resistance_levels = sorted([r for r in clustered_resistance if r > current_price])[:num_levels]
             support_levels = sorted([s for s in clustered_support if s < current_price], reverse=True)[:num_levels]
 
-            # If not enough levels found, add levels based on percentage
             while len(resistance_levels) < num_levels:
                 next_resistance = current_price * (1 + 0.02 * (len(resistance_levels) + 1))
                 resistance_levels.append(next_resistance)
@@ -387,8 +624,12 @@ class TechnicalIndicators:
             Dict with support/resistance levels
         """
         if timeframe_type == 'short':
-            # Short-term: look back 20 candles, find 2 levels
             return TechnicalIndicators.calculate_support_resistance(df, lookback=20, num_levels=2)
         else:
-            # Long-term: look back 50 candles, find 3 levels
             return TechnicalIndicators.calculate_support_resistance(df, lookback=50, num_levels=3)
+
+
+# Convenience function to check if pandas_ta is available
+def is_pandas_ta_available() -> bool:
+    """Check if pandas_ta library is installed"""
+    return PANDAS_TA_AVAILABLE

@@ -16,5 +16,8 @@ Authlib>=1.3.0
 cryptography>=41.0.0
 Werkzeug>=3.0.0
 
+# Technical Analysis
+pandas_ta>=0.3.14b  # Technical indicators library (130+ indicators)
+
 # Optional dependencies for enhanced functionality
 python-dotenv>=1.0.0  # For environment variable management
