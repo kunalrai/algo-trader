@@ -20,10 +20,17 @@ from simulated_wallet import SimulatedWallet
 from bot_status import get_bot_status_tracker
 from activity_log import get_activity_log
 from strategies.strategy_manager import get_strategy_manager
-from models import db, init_db, User, UserProfile, UserTradingPair
+from strategies.custom_strategy_loader import get_custom_strategy_loader
+from models import db, init_db, User, UserProfile, UserTradingPair, CustomStrategy
 from auth import auth_bp, init_auth
+from werkzeug.utils import secure_filename
 import json
 import os
+
+# Per-user isolation imports
+from user_wallet_manager import get_user_wallet_manager
+from user_bot_status import get_user_bot_status_tracker
+from user_activity_log import get_user_activity_log
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -99,12 +106,11 @@ def get_user_client():
 
 
 def get_user_simulated_wallet():
-    """Get the simulated wallet for the current user"""
-    if current_user.is_authenticated and current_user.profile:
-        # For now, return the global simulated wallet
-        # In a full implementation, this would return user-specific wallet from DB
-        return simulated_wallet
-    return simulated_wallet
+    """Get the simulated wallet for the current user (per-user isolation)"""
+    if current_user.is_authenticated:
+        # Return user-specific wallet manager from database
+        return get_user_wallet_manager(current_user.id)
+    return None
 
 
 def get_user_trading_pairs():
@@ -180,11 +186,24 @@ def dashboard_legacy():
 @app.route('/api/status')
 @login_required
 def get_status():
-    """Get bot status and overview"""
+    """Get bot status and overview (per-user isolation)"""
     try:
         # Use user's trading mode preference
         is_paper_mode = get_user_trading_mode()
         user_wallet = get_user_simulated_wallet()
+
+        # Get user-specific risk settings
+        user_config = {
+            'max_positions': config.TRADING_PARAMS['max_open_positions'],
+            'leverage': config.RISK_MANAGEMENT['leverage'],
+            'stop_loss': config.RISK_MANAGEMENT['stop_loss_percent'],
+            'take_profit': config.RISK_MANAGEMENT['take_profit_percent']
+        }
+        if current_user.profile:
+            user_config['max_positions'] = current_user.profile.max_open_positions
+            user_config['leverage'] = current_user.profile.leverage
+            user_config['stop_loss'] = current_user.profile.stop_loss_percent
+            user_config['take_profit'] = current_user.profile.take_profit_percent
 
         # Use simulated wallet if in paper trading mode
         if is_paper_mode and user_wallet:
@@ -194,6 +213,7 @@ def get_status():
             status = {
                 'timestamp': datetime.now().isoformat(),
                 'trading_mode': 'DRY RUN',
+                'user_id': current_user.id,
                 'wallet': {
                     'total_balance': wallet_info['total_balance'],
                     'available_balance': wallet_info['available_balance'],
@@ -205,14 +225,14 @@ def get_status():
                 },
                 'positions': {
                     'total': len(positions),
-                    'long': sum(1 for p in positions if p['side'] == 'long'),
-                    'short': sum(1 for p in positions if p['side'] == 'short')
+                    'long': sum(1 for p in positions if p.get('side') == 'long'),
+                    'short': sum(1 for p in positions if p.get('side') == 'short')
                 },
                 'config': {
-                    'max_positions': config.TRADING_PARAMS['max_open_positions'],
-                    'leverage': config.RISK_MANAGEMENT['leverage'],
-                    'stop_loss': f"{config.RISK_MANAGEMENT['stop_loss_percent']}%",
-                    'take_profit': f"{config.RISK_MANAGEMENT['take_profit_percent']}%"
+                    'max_positions': user_config['max_positions'],
+                    'leverage': user_config['leverage'],
+                    'stop_loss': f"{user_config['stop_loss']}%",
+                    'take_profit': f"{user_config['take_profit']}%"
                 }
             }
         else:
@@ -254,29 +274,35 @@ def get_status():
 @app.route('/api/positions')
 @login_required
 def get_positions():
-    """Get all active positions with current P&L"""
+    """Get all active positions with current P&L (per-user isolation)"""
     try:
         # Get user's trading pairs for filtering
         user_pairs = get_user_trading_pairs()
         user_symbols = set(user_pairs.values())
 
-        # Use simulated wallet if in dry-run mode
-        if config.TRADING_PARAMS.get('dry_run') and simulated_wallet:
-            positions = simulated_wallet.get_all_positions()
+        # Use user's trading mode preference
+        is_paper_mode = get_user_trading_mode()
+        user_wallet = get_user_simulated_wallet()
+
+        # Use per-user simulated wallet if in paper trading mode
+        if is_paper_mode and user_wallet:
+            positions = user_wallet.get_all_positions()
 
             positions_data = []
             for pos in positions:
                 # Filter by user's trading pairs
-                if pos['pair'] not in user_symbols:
+                if pos.get('pair') not in user_symbols:
                     continue
                 # Get current price
-                current_price = data_fetcher.get_latest_price(pos['pair'])
+                current_price = data_fetcher.get_latest_price(pos.get('pair'))
 
-                # Update position price in simulated wallet
+                # Update position price in user's simulated wallet
                 if current_price > 0:
-                    simulated_wallet.update_position_price(pos['position_id'], current_price)
+                    user_wallet.update_position_price(pos.get('position_id'), current_price)
                     # Get updated position
-                    pos = simulated_wallet.get_position(pos['position_id'])
+                    pos = user_wallet.get_position(pos.get('position_id'))
+                    if not pos:
+                        continue
 
                 positions_data.append({
                     'id': pos['position_id'],
@@ -411,7 +437,7 @@ def get_market_data(symbol):
 @app.route('/api/close-position', methods=['POST'])
 @login_required
 def close_position():
-    """Close a specific position"""
+    """Close a specific position (per-user isolation)"""
     try:
         data = request.get_json()
         position_id = data.get('position_id')
@@ -419,22 +445,26 @@ def close_position():
         if not position_id:
             return jsonify({'error': 'position_id required'}), 400
 
-        # Check if dry run mode
-        if config.TRADING_PARAMS['dry_run'] and simulated_wallet:
-            # Get position from simulated wallet
-            position = simulated_wallet.get_position(position_id)
+        # Use user's trading mode preference
+        is_paper_mode = get_user_trading_mode()
+        user_wallet = get_user_simulated_wallet()
+
+        # Check if paper trading mode
+        if is_paper_mode and user_wallet:
+            # Get position from user's simulated wallet
+            position = user_wallet.get_position(position_id)
 
             if not position:
                 return jsonify({'error': 'Position not found'}), 404
 
             # Get current price to close at
-            current_price = data_fetcher.get_latest_price(position['pair'])
+            current_price = data_fetcher.get_latest_price(position.get('pair'))
 
             if current_price == 0:
                 return jsonify({'error': 'Could not get current price'}), 500
 
-            # Close position in simulated wallet
-            result = simulated_wallet.close_position(
+            # Close position in user's simulated wallet
+            result = user_wallet.close_position(
                 position_id,
                 current_price,
                 "Manual close via dashboard"
@@ -680,12 +710,15 @@ def get_liquidity(symbol):
 @app.route('/api/simulated/stats')
 @login_required
 def get_simulated_stats():
-    """Get simulated wallet statistics (dry-run mode only)"""
+    """Get simulated wallet statistics (per-user isolation)"""
     try:
-        if not config.TRADING_PARAMS.get('dry_run') or not simulated_wallet:
-            return jsonify({'error': 'Not in dry-run mode'}), 400
+        is_paper_mode = get_user_trading_mode()
+        user_wallet = get_user_simulated_wallet()
 
-        stats = simulated_wallet.get_statistics()
+        if not is_paper_mode or not user_wallet:
+            return jsonify({'error': 'Not in paper trading mode'}), 400
+
+        stats = user_wallet.get_statistics()
         return jsonify(stats)
     except Exception as e:
         logger.error(f"Error getting simulated stats: {e}")
@@ -695,13 +728,16 @@ def get_simulated_stats():
 @app.route('/api/simulated/trades')
 @login_required
 def get_simulated_trades():
-    """Get simulated trade history (dry-run mode only)"""
+    """Get simulated trade history (per-user isolation)"""
     try:
-        if not config.TRADING_PARAMS.get('dry_run') or not simulated_wallet:
-            return jsonify({'error': 'Not in dry-run mode'}), 400
+        is_paper_mode = get_user_trading_mode()
+        user_wallet = get_user_simulated_wallet()
+
+        if not is_paper_mode or not user_wallet:
+            return jsonify({'error': 'Not in paper trading mode'}), 400
 
         limit = int(request.args.get('limit', 20))
-        trades = simulated_wallet.get_trade_history(limit=limit)
+        trades = user_wallet.get_trade_history(limit=limit)
 
         return jsonify(trades)
     except Exception as e:
@@ -712,18 +748,23 @@ def get_simulated_trades():
 @app.route('/api/simulated/reset', methods=['POST'])
 @login_required
 def reset_simulated_wallet():
-    """Reset simulated wallet to initial balance (dry-run mode only)"""
+    """Reset simulated wallet to initial balance (per-user isolation)"""
     try:
-        if not config.TRADING_PARAMS.get('dry_run') or not simulated_wallet:
-            return jsonify({'error': 'Not in dry-run mode'}), 400
+        is_paper_mode = get_user_trading_mode()
+        user_wallet = get_user_simulated_wallet()
 
-        # Get initial balance from config or request
+        if not is_paper_mode or not user_wallet:
+            return jsonify({'error': 'Not in paper trading mode'}), 400
+
+        # Get initial balance from user profile or config
         initial_balance = config.TRADING_PARAMS.get('simulated_balance', 1000.0)
+        if current_user.profile:
+            initial_balance = current_user.profile.simulated_balance or initial_balance
 
-        # Reset the wallet
-        simulated_wallet.reset(initial_balance)
+        # Reset the user's wallet
+        user_wallet.reset(initial_balance)
 
-        logger.info(f"Simulated wallet reset to ${initial_balance:.2f}")
+        logger.info(f"User {current_user.id}: Simulated wallet reset to ${initial_balance:.2f}")
 
         return jsonify({
             'success': True,
@@ -738,10 +779,12 @@ def reset_simulated_wallet():
 @app.route('/api/bot/status')
 @login_required
 def get_bot_status():
-    """Get bot runtime status and current activity"""
+    """Get bot runtime status and current activity (per-user isolation)"""
     try:
-        status_tracker = get_bot_status_tracker()
-        status = status_tracker.get_status()
+        # Get per-user bot status tracker
+        user_status_tracker = get_user_bot_status_tracker(current_user.id)
+        status = user_status_tracker.get_status()
+        status['user_id'] = current_user.id
         return jsonify(status)
     except Exception as e:
         logger.error(f"Error getting bot status: {e}")
@@ -751,13 +794,14 @@ def get_bot_status():
 @app.route('/api/bot/activity')
 @login_required
 def get_bot_activity():
-    """Get recent bot activity feed"""
+    """Get recent bot activity feed (per-user isolation)"""
     try:
-        activity_log = get_activity_log()
+        # Get per-user activity log
+        user_activity_log = get_user_activity_log(current_user.id)
         limit = int(request.args.get('limit', 50))
         filter_type = request.args.get('type', None)
 
-        activities = activity_log.get_recent_activities(limit=limit, filter_type=filter_type)
+        activities = user_activity_log.get_recent_activities(limit=limit, filter_type=filter_type)
 
         # Filter activities by user's trading pairs
         user_pairs = get_user_trading_pairs()
@@ -783,33 +827,39 @@ def get_bot_activity():
 @app.route('/api/wallet/history')
 @login_required
 def get_wallet_history():
-    """Get wallet balance history over time (for chart)"""
+    """Get wallet balance history over time (per-user isolation)"""
     try:
-        if not config.TRADING_PARAMS.get('dry_run') or not simulated_wallet:
-            return jsonify({'error': 'Not in dry-run mode'}), 400
+        is_paper_mode = get_user_trading_mode()
+        user_wallet = get_user_simulated_wallet()
 
-        # Get trade history
-        trades = simulated_wallet.get_trade_history(limit=100)
+        if not is_paper_mode or not user_wallet:
+            return jsonify({'error': 'Not in paper trading mode'}), 400
+
+        # Get trade history for this user
+        trades = user_wallet.get_trade_history(limit=100)
 
         # Calculate balance at each trade
         initial_balance = config.TRADING_PARAMS.get('simulated_balance', 1000.0)
+        if current_user.profile:
+            initial_balance = current_user.profile.simulated_balance or initial_balance
+
         balance_history = []
 
         # Add starting point
         if trades:
             balance_history.append({
-                'timestamp': trades[0]['opened_at'] if trades else 0,
+                'timestamp': trades[0].get('opened_at', '') if trades else 0,
                 'balance': initial_balance,
                 'pnl': 0
             })
 
         running_balance = initial_balance
         for trade in trades:
-            running_balance += trade['pnl']
+            running_balance += trade.get('pnl', 0)
             balance_history.append({
-                'timestamp': trade['closed_at'],
+                'timestamp': trade.get('closed_at', ''),
                 'balance': running_balance,
-                'pnl': trade['pnl']
+                'pnl': trade.get('pnl', 0)
             })
 
         return jsonify(balance_history)
@@ -983,6 +1033,324 @@ def toggle_strategy_system():
         })
     except Exception as e:
         logger.error(f"Error toggling strategy system: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# CUSTOM STRATEGY MANAGEMENT ENDPOINTS
+# ============================================================================
+
+@app.route('/api/strategies/custom/list')
+@login_required
+def list_custom_strategies():
+    """List all custom strategies for the current user"""
+    try:
+        # Get strategies from database for this user
+        custom_strategies = CustomStrategy.query.filter_by(
+            user_id=current_user.id,
+            is_active=True
+        ).order_by(CustomStrategy.created_at.desc()).all()
+
+        strategies_list = []
+        for strategy in custom_strategies:
+            strategies_list.append({
+                'id': strategy.id,
+                'strategy_id': strategy.strategy_id,
+                'class_name': strategy.class_name,
+                'filename': strategy.filename,
+                'description': strategy.description,
+                'is_validated': strategy.is_validated,
+                'validation_error': strategy.validation_error,
+                'created_at': strategy.created_at.isoformat(),
+                'updated_at': strategy.updated_at.isoformat(),
+                'last_used_at': strategy.last_used_at.isoformat() if strategy.last_used_at else None,
+                'file_size': strategy.file_size
+            })
+
+        return jsonify({
+            'success': True,
+            'strategies': strategies_list
+        })
+    except Exception as e:
+        logger.error(f"Error listing custom strategies: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/strategies/custom/upload', methods=['POST'])
+@login_required
+def upload_custom_strategy():
+    """Upload a new custom strategy file"""
+    try:
+        # Check if file was uploaded
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+
+        file = request.files['file']
+
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+        # Check file extension
+        if not file.filename.endswith('.py'):
+            return jsonify({'success': False, 'error': 'Only .py files are allowed'}), 400
+
+        # Read file content
+        file_content = file.read().decode('utf-8')
+        filename = secure_filename(file.filename)
+
+        # Load the custom strategy loader
+        loader = get_custom_strategy_loader()
+
+        # Validate the strategy code
+        is_valid, error_msg, metadata = loader.validate_strategy_code(file_content, filename)
+
+        if not is_valid:
+            return jsonify({
+                'success': False,
+                'error': f'Strategy validation failed: {error_msg}'
+            }), 400
+
+        # Save to file system
+        success, message = loader.save_strategy_file(filename, file_content, current_user.id)
+
+        if not success:
+            return jsonify({'success': False, 'error': message}), 400
+
+        # Save to database
+        strategy_id = filename[:-3] if filename.endswith('.py') else filename
+
+        # Check if strategy already exists for this user
+        existing = CustomStrategy.query.filter_by(
+            user_id=current_user.id,
+            strategy_id=strategy_id
+        ).first()
+
+        if existing:
+            # Update existing strategy
+            existing.source_code = file_content
+            existing.class_name = metadata['class_name']
+            existing.description = metadata.get('description', '')
+            existing.is_validated = True
+            existing.validation_error = None
+            existing.file_size = len(file_content.encode('utf-8'))
+            existing.version += 1
+            existing.updated_at = datetime.utcnow()
+        else:
+            # Create new strategy record
+            custom_strategy = CustomStrategy(
+                user_id=current_user.id,
+                strategy_id=strategy_id,
+                class_name=metadata['class_name'],
+                filename=filename,
+                description=metadata.get('description', ''),
+                source_code=file_content,
+                is_validated=True,
+                file_size=len(file_content.encode('utf-8'))
+            )
+            db.session.add(custom_strategy)
+
+        db.session.commit()
+
+        # Load the strategy into the strategy manager
+        success, strategy_class, error = loader.load_strategy_from_file(filename)
+
+        if success and strategy_class:
+            # Register with strategy manager
+            strategy_manager = get_strategy_manager()
+            strategy_manager.register_strategy(strategy_id, strategy_class)
+
+            logger.info(f"User {current_user.id} uploaded custom strategy: {strategy_id}")
+
+            return jsonify({
+                'success': True,
+                'message': f'Strategy "{strategy_id}" uploaded successfully',
+                'strategy': {
+                    'strategy_id': strategy_id,
+                    'class_name': metadata['class_name'],
+                    'filename': filename,
+                    'description': metadata.get('description', '')
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Strategy uploaded but failed to load: {error}'
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error uploading custom strategy: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/strategies/custom/<int:strategy_db_id>')
+@login_required
+def get_custom_strategy(strategy_db_id):
+    """Get details of a specific custom strategy"""
+    try:
+        strategy = CustomStrategy.query.filter_by(
+            id=strategy_db_id,
+            user_id=current_user.id
+        ).first()
+
+        if not strategy:
+            return jsonify({'success': False, 'error': 'Strategy not found'}), 404
+
+        return jsonify({
+            'success': True,
+            'strategy': {
+                'id': strategy.id,
+                'strategy_id': strategy.strategy_id,
+                'class_name': strategy.class_name,
+                'filename': strategy.filename,
+                'description': strategy.description,
+                'source_code': strategy.source_code,
+                'is_validated': strategy.is_validated,
+                'validation_error': strategy.validation_error,
+                'version': strategy.version,
+                'created_at': strategy.created_at.isoformat(),
+                'updated_at': strategy.updated_at.isoformat(),
+                'last_used_at': strategy.last_used_at.isoformat() if strategy.last_used_at else None
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error getting custom strategy: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/strategies/custom/<int:strategy_db_id>', methods=['DELETE'])
+@login_required
+def delete_custom_strategy(strategy_db_id):
+    """Delete a custom strategy"""
+    try:
+        strategy = CustomStrategy.query.filter_by(
+            id=strategy_db_id,
+            user_id=current_user.id
+        ).first()
+
+        if not strategy:
+            return jsonify({'success': False, 'error': 'Strategy not found'}), 404
+
+        strategy_id = strategy.strategy_id
+        filename = strategy.filename
+
+        # Delete from file system
+        loader = get_custom_strategy_loader()
+        file_success, file_message = loader.delete_strategy(filename)
+
+        # Delete from database (even if file deletion failed)
+        db.session.delete(strategy)
+        db.session.commit()
+
+        logger.info(f"User {current_user.id} deleted custom strategy: {strategy_id}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Strategy "{strategy_id}" deleted successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error deleting custom strategy: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/strategies/custom/validate', methods=['POST'])
+@login_required
+def validate_strategy_code():
+    """Validate strategy code without saving"""
+    try:
+        data = request.get_json()
+        code = data.get('code')
+        filename = data.get('filename', 'test_strategy.py')
+
+        if not code:
+            return jsonify({'success': False, 'error': 'No code provided'}), 400
+
+        loader = get_custom_strategy_loader()
+        is_valid, error_msg, metadata = loader.validate_strategy_code(code, filename)
+
+        if is_valid:
+            return jsonify({
+                'success': True,
+                'valid': True,
+                'metadata': metadata,
+                'message': 'Strategy code is valid'
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'valid': False,
+                'error': error_msg
+            })
+
+    except Exception as e:
+        logger.error(f"Error validating strategy code: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/strategies/custom/template')
+@login_required
+def get_strategy_template():
+    """Get a template for creating custom strategies"""
+    try:
+        template_path = os.path.join(os.path.dirname(__file__), 'strategies', 'custom', 'example_template.py')
+
+        if os.path.exists(template_path):
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_code = f.read()
+        else:
+            # Return a basic template
+            template_code = """from strategies.base_strategy import BaseStrategy
+
+class MyCustomStrategy(BaseStrategy):
+    \"\"\"
+    Custom trading strategy template
+
+    Implement your trading logic by overriding the required methods.
+    \"\"\"
+
+    def __init__(self, min_strength=0.6, **kwargs):
+        super().__init__()
+        self.min_strength = min_strength
+        # Add your custom parameters here
+
+    def get_required_timeframes(self):
+        \"\"\"Return list of required timeframes\"\"\"
+        return ['5m', '1h', '4h']
+
+    def get_required_indicators(self):
+        \"\"\"Return list of required indicators\"\"\"
+        return ['ema_9', 'ema_21', 'rsi', 'macd']
+
+    def analyze(self, data, current_price):
+        \"\"\"
+        Analyze market data and return trading signal
+
+        Args:
+            data: Dict of timeframe data with indicators
+            current_price: Current market price
+
+        Returns:
+            Signal dict with action, strength, confidence, etc.
+        \"\"\"
+        # Your strategy logic here
+
+        return {
+            'action': 'flat',  # 'long', 'short', or 'flat'
+            'strength': 0.0,
+            'confidence': 0.0,
+            'reasons': ['No signal detected'],
+            'indicators': {},
+            'metadata': {}
+        }
+"""
+
+        return jsonify({
+            'success': True,
+            'template': template_code
+        })
+    except Exception as e:
+        logger.error(f"Error getting strategy template: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

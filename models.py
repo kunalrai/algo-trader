@@ -295,10 +295,55 @@ class UserTradeHistory(db.Model):
     closed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class CustomStrategy(db.Model):
+    """User-uploaded custom trading strategies"""
+    __tablename__ = 'custom_strategies'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    # Strategy identification
+    strategy_id = db.Column(db.String(100), nullable=False, index=True)  # File name without .py
+    class_name = db.Column(db.String(100), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+
+    # Strategy details
+    description = db.Column(db.Text, nullable=True)
+    source_code = db.Column(db.Text, nullable=False)
+
+    # Status and validation
+    is_active = db.Column(db.Boolean, default=True)
+    is_validated = db.Column(db.Boolean, default=False)
+    validation_error = db.Column(db.Text, nullable=True)
+
+    # Metadata
+    version = db.Column(db.Integer, default=1)
+    file_size = db.Column(db.Integer, nullable=True)  # Size in bytes
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_used_at = db.Column(db.DateTime, nullable=True)
+
+    # Relationships
+    user = db.relationship('User', backref=db.backref('custom_strategies', lazy='dynamic'))
+
+    # Unique constraint: strategy_id must be unique per user
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'strategy_id', name='unique_user_strategy'),
+    )
+
+    def __repr__(self):
+        return f'<CustomStrategy {self.strategy_id} by user {self.user_id}>'
+
+
 def init_db(app):
     """Initialize database with app context"""
     db.init_app(app)
     with app.app_context():
+        # Import per-user isolation models to ensure they're registered
+        from user_bot_status import UserBotStatus
+        from user_activity_log import UserActivity
         db.create_all()
 
 

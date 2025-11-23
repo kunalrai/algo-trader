@@ -171,7 +171,9 @@ def google_login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
-    redirect_uri = url_for('auth.google_callback', _external=True, _scheme='https')
+    # Use http for localhost, https for production
+    scheme = 'http' if request.host.startswith('localhost') or request.host.startswith('127.0.0.1') else 'https'
+    redirect_uri = url_for('auth.google_callback', _external=True, _scheme=scheme)
     return oauth.google.authorize_redirect(redirect_uri)
 
 

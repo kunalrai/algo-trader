@@ -192,6 +192,113 @@
     </div>
 </div>
 
+<!-- Custom Strategies Section -->
+<div class="mb-8">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+            </svg>
+            Custom Strategies
+        </h2>
+        <button onclick="showUploadModal()" class="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+            </svg>
+            Upload Strategy
+        </button>
+    </div>
+
+    <!-- Custom Strategies List -->
+    <div id="custom-strategies-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Will be populated dynamically -->
+        <div class="col-span-2 text-center py-12 bg-gray-800 rounded-lg border border-gray-700">
+            <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <p class="text-gray-400 mb-2">No custom strategies uploaded yet</p>
+            <p class="text-sm text-gray-500">Upload your first custom strategy to get started</p>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Strategy Modal -->
+<div id="uploadModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center">
+    <div class="bg-gray-800 rounded-lg shadow-2xl p-8 max-w-2xl w-full mx-4 border border-gray-700">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold text-white">Upload Custom Strategy</h3>
+            <button onclick="closeUploadModal()" class="text-gray-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="mb-6">
+                <label class="block text-sm font-semibold text-gray-300 mb-2">
+                    Strategy File (.py)
+                </label>
+                <div class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-purple-500 transition-colors cursor-pointer" id="dropZone">
+                    <input type="file" id="strategyFile" name="file" accept=".py" class="hidden" onchange="handleFileSelect(event)">
+                    <label for="strategyFile" class="cursor-pointer">
+                        <svg class="w-12 h-12 mx-auto text-gray-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        <p class="text-gray-400 mb-1">
+                            <span class="text-purple-400 font-semibold">Click to upload</span> or drag and drop
+                        </p>
+                        <p class="text-xs text-gray-500">Python file (.py) that inherits from BaseStrategy</p>
+                    </label>
+                </div>
+                <div id="fileInfo" class="hidden mt-3 p-3 bg-gray-700 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span id="fileName" class="text-sm text-white"></span>
+                        </div>
+                        <button type="button" onclick="clearFile()" class="text-red-400 hover:text-red-300">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-blue-900 bg-opacity-30 border border-blue-600 rounded-lg p-4 mb-6">
+                <div class="flex items-start gap-3">
+                    <svg class="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <div class="text-sm text-blue-200">
+                        <p class="font-semibold mb-1">Strategy Requirements:</p>
+                        <ul class="list-disc list-inside space-y-1 text-xs">
+                            <li>Must inherit from <code class="bg-gray-700 px-1 rounded">BaseStrategy</code></li>
+                            <li>Implement: <code class="bg-gray-700 px-1 rounded">analyze()</code>, <code class="bg-gray-700 px-1 rounded">get_required_timeframes()</code>, <code class="bg-gray-700 px-1 rounded">get_required_indicators()</code></li>
+                            <li>One strategy class per file</li>
+                        </ul>
+                        <button type="button" onclick="downloadTemplate()" class="mt-2 text-purple-400 hover:text-purple-300 text-xs font-semibold">
+                            Download Template →
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button type="submit" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+                    Upload Strategy
+                </button>
+                <button type="button" onclick="closeUploadModal()" class="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
+                    Cancel
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Strategy Performance Comparison (if available) -->
 <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
     <h2 class="text-xl font-bold text-white mb-4">Strategy Guidelines</h2>
@@ -301,8 +408,328 @@ async function changeStrategy() {
     }
 }
 
+// Custom Strategies Functions
+async function fetchCustomStrategies() {
+    try {
+        const response = await fetch('/api/strategies/custom/list');
+        const data = await response.json();
+
+        const container = document.getElementById('custom-strategies-container');
+
+        if (data.success && data.strategies.length > 0) {
+            container.innerHTML = '';
+            data.strategies.forEach(strategy => {
+                const card = createCustomStrategyCard(strategy);
+                container.innerHTML += card;
+            });
+
+            // Also add custom strategies to the selector
+            const selector = document.getElementById('strategy-selector');
+            data.strategies.forEach(strategy => {
+                if (!Array.from(selector.options).some(opt => opt.value === strategy.strategy_id)) {
+                    const option = document.createElement('option');
+                    option.value = strategy.strategy_id;
+                    option.textContent = `${strategy.class_name} (Custom)`;
+                    selector.appendChild(option);
+                }
+            });
+        } else {
+            container.innerHTML = `
+                <div class="col-span-2 text-center py-12 bg-gray-800 rounded-lg border border-gray-700">
+                    <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <p class="text-gray-400 mb-2">No custom strategies uploaded yet</p>
+                    <p class="text-sm text-gray-500">Upload your first custom strategy to get started</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error fetching custom strategies:', error);
+    }
+}
+
+function createCustomStrategyCard(strategy) {
+    const validatedBadge = strategy.is_validated
+        ? '<span class="text-xs text-green-400 font-semibold">✓ VALIDATED</span>'
+        : '<span class="text-xs text-red-400 font-semibold">⚠ NOT VALIDATED</span>';
+
+    const formattedDate = new Date(strategy.created_at).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    });
+
+    return `
+        <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-white">${strategy.class_name}</h3>
+                    ${validatedBadge}
+                </div>
+                <div class="bg-cyan-500 bg-opacity-20 rounded-lg p-2">
+                    <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                    </svg>
+                </div>
+            </div>
+            <p class="text-sm text-gray-300 mb-4">
+                ${strategy.description || 'No description provided'}
+            </p>
+            <div class="space-y-2 text-xs text-gray-400 mb-4">
+                <div class="flex justify-between">
+                    <span>Filename:</span>
+                    <span class="text-white">${strategy.filename}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Uploaded:</span>
+                    <span class="text-white">${formattedDate}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Version:</span>
+                    <span class="text-white">${strategy.version || 1}</span>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="useCustomStrategy('${strategy.strategy_id}')" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold py-2 px-3 rounded transition-colors">
+                    Use Strategy
+                </button>
+                <button onclick="viewCustomStrategy(${strategy.id})" class="bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold py-2 px-3 rounded transition-colors">
+                    View Code
+                </button>
+                <button onclick="deleteCustomStrategy(${strategy.id}, '${strategy.class_name}')" class="bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 px-3 rounded transition-colors">
+                    Delete
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function showUploadModal() {
+    document.getElementById('uploadModal').classList.remove('hidden');
+}
+
+function closeUploadModal() {
+    document.getElementById('uploadModal').classList.add('hidden');
+    document.getElementById('uploadForm').reset();
+    clearFile();
+}
+
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileInfo').classList.remove('hidden');
+    }
+}
+
+function clearFile() {
+    document.getElementById('strategyFile').value = '';
+    document.getElementById('fileInfo').classList.add('hidden');
+}
+
+async function downloadTemplate() {
+    try {
+        const response = await fetch('/api/strategies/custom/template');
+        const data = await response.json();
+
+        if (data.success) {
+            const blob = new Blob([data.template], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'custom_strategy_template.py';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+    } catch (error) {
+        console.error('Error downloading template:', error);
+        alert('Failed to download template');
+    }
+}
+
+document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const fileInput = document.getElementById('strategyFile');
+    if (!fileInput.files.length) {
+        alert('Please select a file to upload');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    try {
+        const response = await fetch('/api/strategies/custom/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`✅ ${result.message}\n\nStrategy: ${result.strategy.class_name}\nFilename: ${result.strategy.filename}`);
+            closeUploadModal();
+            fetchCustomStrategies();
+        } else {
+            alert(`❌ Upload failed:\n\n${result.error}`);
+        }
+    } catch (error) {
+        console.error('Error uploading strategy:', error);
+        alert('❌ Failed to upload strategy. Check console for details.');
+    }
+});
+
+async function useCustomStrategy(strategyId) {
+    if (!confirm(`Switch to custom strategy: ${strategyId}?\n\nThis will restart the bot analysis cycle.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/strategies/set', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                strategy_id: strategyId
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`✅ Strategy changed to: ${result.active_strategy.name}\n\nThe bot will use this strategy for all future analysis.`);
+            fetchActiveStrategy();
+        } else {
+            alert(`❌ Error: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('Error setting custom strategy:', error);
+        alert('❌ Failed to set strategy. Check console for details.');
+    }
+}
+
+async function viewCustomStrategy(strategyDbId) {
+    try {
+        const response = await fetch(`/api/strategies/custom/${strategyDbId}`);
+        const data = await response.json();
+
+        if (data.success) {
+            const strategy = data.strategy;
+            const modal = `
+                <div class="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center" id="viewModal">
+                    <div class="bg-gray-800 rounded-lg shadow-2xl p-8 max-w-4xl w-full mx-4 border border-gray-700 max-h-screen overflow-y-auto">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-2xl font-bold text-white">${strategy.class_name}</h3>
+                            <button onclick="document.getElementById('viewModal').remove()" class="text-gray-400 hover:text-white">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="mb-4">
+                            <p class="text-sm text-gray-400">Filename: <span class="text-white">${strategy.filename}</span></p>
+                            <p class="text-sm text-gray-400">Description: <span class="text-white">${strategy.description || 'N/A'}</span></p>
+                        </div>
+                        <div class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+                            <pre class="text-sm text-gray-300"><code>${escapeHtml(strategy.source_code)}</code></pre>
+                        </div>
+                        <div class="mt-6 flex gap-3">
+                            <button onclick="document.getElementById('viewModal').remove()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modal);
+        } else {
+            alert(`❌ Error: ${data.error}`);
+        }
+    } catch (error) {
+        console.error('Error viewing strategy:', error);
+        alert('❌ Failed to view strategy');
+    }
+}
+
+async function deleteCustomStrategy(strategyDbId, className) {
+    if (!confirm(`Delete custom strategy: ${className}?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/strategies/custom/${strategyDbId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(`✅ ${result.message}`);
+            fetchCustomStrategies();
+        } else {
+            alert(`❌ Error: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('Error deleting strategy:', error);
+        alert('❌ Failed to delete strategy');
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Drag and drop support
+const dropZone = document.getElementById('dropZone');
+
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, preventDefaults, false);
+});
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, highlight, false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, unhighlight, false);
+});
+
+function highlight(e) {
+    dropZone.classList.add('border-purple-500');
+}
+
+function unhighlight(e) {
+    dropZone.classList.remove('border-purple-500');
+}
+
+dropZone.addEventListener('drop', handleDrop, false);
+
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+
+    if (files.length > 0) {
+        document.getElementById('strategyFile').files = files;
+        handleFileSelect({ target: { files: files } });
+    }
+}
+
 // Initial load
 fetchActiveStrategy();
+fetchCustomStrategies();
 setInterval(fetchActiveStrategy, 5000);
+setInterval(fetchCustomStrategies, 10000);
 </script>
 {% endblock %}
