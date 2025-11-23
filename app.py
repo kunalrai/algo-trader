@@ -1101,26 +1101,23 @@ def list_strategies():
 def get_active_strategy():
     """Get currently active strategy information for the current user"""
     try:
-        strategy_manager = get_strategy_manager()
-
-        # Get user's saved strategy preference
-        user_strategy = None
+        # Get user's saved strategy preference from their profile
         user_profile = UserProfile.query.filter_by(user_id=current_user.id).first()
-        if user_profile and user_profile.default_strategy:
-            user_strategy = user_profile.default_strategy
+        user_strategy_id = user_profile.default_strategy if user_profile and user_profile.default_strategy else 'combined'
 
-        # If user has a saved strategy, set it as active for this request
-        if user_strategy and user_strategy != strategy_manager.get_active_strategy_id():
-            strategy_manager.set_active_strategy(user_strategy)
-
-        active_info = strategy_manager.get_active_strategy_info()
+        # Create a temporary strategy manager to get strategy info
+        # This doesn't affect any other users since we don't store it globally
+        from strategies.strategy_manager import StrategyManager
+        temp_manager = StrategyManager()
+        temp_manager.set_active_strategy(user_strategy_id)
+        active_info = temp_manager.get_active_strategy_info()
 
         return jsonify({
             'success': True,
             'active_strategy': active_info,
             'strategy_system_enabled': config.STRATEGY_CONFIG.get('enabled', False),
             'configured_strategy': config.STRATEGY_CONFIG.get('active_strategy', 'combined'),
-            'user_strategy': user_strategy
+            'user_strategy': user_strategy_id
         })
     except Exception as e:
         logger.error(f"Error getting active strategy: {e}")
@@ -1138,19 +1135,18 @@ def set_active_strategy():
         if not strategy_id:
             return jsonify({'success': False, 'error': 'strategy_id required'}), 400
 
-        strategy_manager = get_strategy_manager()
+        # Validate strategy exists using a temporary manager
+        from strategies.strategy_manager import StrategyManager
+        temp_manager = StrategyManager()
 
         # Get custom params if provided, otherwise use config
         params = data.get('params')
         if not params and strategy_id in config.STRATEGY_CONFIG.get('strategy_params', {}):
             params = config.STRATEGY_CONFIG['strategy_params'][strategy_id]
 
-        success = strategy_manager.set_active_strategy(strategy_id, params)
+        success = temp_manager.set_active_strategy(strategy_id, params)
 
         if success:
-            # Update config (global fallback)
-            config.STRATEGY_CONFIG['active_strategy'] = strategy_id
-
             # Save user's strategy preference to database for per-user isolation
             user_profile = UserProfile.query.filter_by(user_id=current_user.id).first()
             if user_profile:
@@ -1164,10 +1160,10 @@ def set_active_strategy():
                 db.session.commit()
                 logger.info(f"User {current_user.id}: Created profile with strategy '{strategy_id}'")
 
-            # Update the cached signal generator with the new strategy
+            # Update the cached signal generator with the new strategy (user-specific)
             update_user_strategy(current_user.id, strategy_id)
 
-            active_info = strategy_manager.get_active_strategy_info()
+            active_info = temp_manager.get_active_strategy_info()
 
             # Update bot status tracker with new strategy info
             from user_bot_status import get_user_bot_status_tracker
