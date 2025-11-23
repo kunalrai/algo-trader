@@ -79,8 +79,11 @@
                 <button onclick="filterActivity('all')" id="filter-all" class="filter-btn bg-blue-600 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-blue-700 transition">
                     All
                 </button>
-                <button onclick="filterActivity('signal_analysis')" id="filter-signal_analysis" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
+                <button onclick="filterActivity('signal_generated')" id="filter-signal_generated" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
                     Signals
+                </button>
+                <button onclick="filterActivity('signal_rejected')" id="filter-signal_rejected" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
+                    Rejected
                 </button>
                 <button onclick="filterActivity('position_opened')" id="filter-position_opened" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
                     Positions
@@ -88,8 +91,8 @@
                 <button onclick="filterActivity('position_closed')" id="filter-position_closed" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
                     Closed
                 </button>
-                <button onclick="filterActivity('risk_check')" id="filter-risk_check" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
-                    Risk
+                <button onclick="filterActivity('error')" id="filter-error" class="filter-btn bg-gray-700 text-gray-300 px-3 py-1 rounded text-xs font-semibold hover:bg-gray-600 transition">
+                    Errors
                 </button>
                 <button onclick="clearActivityFeed()" class="bg-red-600 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-red-700 transition">
                     Clear
@@ -200,13 +203,20 @@ function renderActivityFeed(activities) {
 function renderActivityItem(activity) {
     const icons = {
         'analyzing_pair': '🔍',
+        'pair_scan_start': '🔍',
         'market_scan': '📊',
         'signal_analysis': '📈',
+        'signal_generated': '📈',
+        'signal_rejected': '⛔',
+        'no_signal': '📉',
         'position_decision': '💭',
         'position_opened': '✅',
         'position_closed': '🔒',
         'risk_check': '⚠️',
-        'error': '❌'
+        'error': '❌',
+        'cycle_start': '🔄',
+        'bot_started': '▶️',
+        'bot_stopped': '⏹️'
     };
 
     const icon = icons[activity.action_type] || '📌';
@@ -217,6 +227,28 @@ function renderActivityItem(activity) {
                            activity.signal === 'short' ? 'text-red-400' : 'text-gray-400';
         const strengthPercent = (activity.strength * 100).toFixed(0);
         const strengthColor = activity.strength >= 0.7 ? 'text-green-400' : 'text-yellow-400';
+
+        // Format metadata if available
+        let metadataHtml = '';
+        if (activity.metadata && Object.keys(activity.metadata).length > 0) {
+            const metadataEntries = Object.entries(activity.metadata)
+                .filter(([key, value]) => value !== null && value !== undefined)
+                .map(([key, value]) => {
+                    const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    return `<div class="flex justify-between gap-4"><span class="text-gray-400">${label}:</span><span class="text-gray-200">${value}</span></div>`;
+                }).join('');
+
+            if (metadataEntries) {
+                metadataHtml = `
+                    <div class="ml-11 mt-2 p-2 bg-gray-800 bg-opacity-50 rounded border border-gray-600">
+                        <p class="text-xs font-semibold text-indigo-400 mb-1">Strategy Metadata:</p>
+                        <div class="text-xs space-y-1">
+                            ${metadataEntries}
+                        </div>
+                    </div>
+                `;
+            }
+        }
 
         return `
             <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition">
@@ -237,6 +269,125 @@ function renderActivityItem(activity) {
                 </div>
                 <div class="ml-11 text-xs text-gray-300 space-y-1">
                     ${activity.reasons ? activity.reasons.map(r => `<div class="flex items-start gap-2"><span class="text-blue-400">•</span><span>${r}</span></div>`).join('') : ''}
+                </div>
+                ${metadataHtml}
+            </div>
+        `;
+    }
+
+    if (activity.action_type === 'signal_generated') {
+        const signalColor = activity.action === 'long' ? 'text-green-400' :
+                           activity.action === 'short' ? 'text-red-400' : 'text-gray-400';
+        const strengthPercent = (activity.strength * 100).toFixed(0);
+        const strengthColor = activity.strength >= 0.7 ? 'text-green-400' : 'text-yellow-400';
+
+        // Format detailed signal information
+        let detailsHtml = '';
+        if (activity.price || activity.metadata) {
+            const details = [];
+
+            // Strategy name
+            if (activity.strategy_name) {
+                details.push(`<div class="flex justify-between"><span class="text-gray-400">Strategy:</span><span class="text-blue-400 font-semibold">${activity.strategy_name}</span></div>`);
+            }
+
+            // Current price
+            if (activity.price) {
+                details.push(`<div class="flex justify-between"><span class="text-gray-400">Current Price:</span><span class="text-white font-semibold">$${activity.price.toFixed(2)}</span></div>`);
+            }
+
+            // Metadata details
+            if (activity.metadata) {
+                const meta = activity.metadata;
+                if (meta.nearest_support) {
+                    details.push(`<div class="flex justify-between"><span class="text-gray-400">Nearest Support:</span><span class="text-green-400">$${meta.nearest_support}</span></div>`);
+                }
+                if (meta.nearest_resistance) {
+                    details.push(`<div class="flex justify-between"><span class="text-gray-400">Nearest Resistance:</span><span class="text-red-400">$${meta.nearest_resistance}</span></div>`);
+                }
+                if (meta.max_loss_atr) {
+                    details.push(`<div class="flex justify-between"><span class="text-gray-400">ATR (Max Loss):</span><span class="text-yellow-400">${meta.max_loss_atr}</span></div>`);
+                }
+                if (meta.risk_reward_ratio) {
+                    const rrColor = meta.risk_reward_ratio >= 1.5 ? 'text-green-400' : 'text-yellow-400';
+                    details.push(`<div class="flex justify-between"><span class="text-gray-400">Risk/Reward:</span><span class="${rrColor}">${meta.risk_reward_ratio}</span></div>`);
+                }
+                if (meta.take_profit) {
+                    details.push(`<div class="flex justify-between"><span class="text-gray-400">Take Profit:</span><span class="text-green-400">$${meta.take_profit}</span></div>`);
+                }
+                if (meta.stop_loss) {
+                    details.push(`<div class="flex justify-between"><span class="text-gray-400">Stop Loss:</span><span class="text-red-400">$${meta.stop_loss}</span></div>`);
+                }
+                if (meta.position_type) {
+                    details.push(`<div class="flex justify-between"><span class="text-gray-400">Position Type:</span><span class="text-indigo-400">${meta.position_type}</span></div>`);
+                }
+            }
+
+            if (details.length > 0) {
+                detailsHtml = `
+                    <div class="ml-11 mt-2 p-3 bg-gray-800 bg-opacity-70 rounded-lg border border-indigo-600">
+                        <p class="text-xs font-semibold text-indigo-400 mb-2">📊 Signal Details</p>
+                        <div class="text-xs space-y-1.5">
+                            ${details.join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Eligibility note
+        let eligibilityNote = '';
+        if (activity.strength === 0 || activity.strength < 0.7) {
+            eligibilityNote = `
+                <div class="ml-11 mt-2 p-2 bg-yellow-900 bg-opacity-20 rounded border border-yellow-600">
+                    <p class="text-xs text-yellow-400">✅ Eligible for ${activity.action}, but signal strength = ${activity.strength.toFixed(2)} → will be rejected downstream</p>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">${icon}</span>
+                        <div>
+                            <p class="font-semibold ${signalColor} text-lg">
+                                ${activity.pair} - ${activity.action.toUpperCase()}
+                            </p>
+                            <p class="text-xs text-gray-400">
+                                Strength: <span class="${strengthColor}">${strengthPercent}%</span>
+                            </p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${time}</span>
+                </div>
+                <div class="ml-11 text-xs text-gray-300 space-y-1">
+                    ${activity.reasons ? activity.reasons.map(r => `<div class="flex items-start gap-2"><span class="text-blue-400">•</span><span>${r}</span></div>`).join('') : ''}
+                </div>
+                ${detailsHtml}
+                ${eligibilityNote}
+            </div>
+        `;
+    }
+
+    if (activity.action_type === 'signal_rejected') {
+        const strengthPercent = activity.strength ? (activity.strength * 100).toFixed(0) : '0';
+        const requiredPercent = activity.min_strength ? (activity.min_strength * 100).toFixed(0) : '70';
+
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-yellow-600 hover:border-yellow-500 transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">${icon}</span>
+                        <div class="flex-1">
+                            <p class="text-sm font-semibold text-yellow-400">${activity.pair} - Signal Rejected</p>
+                            <p class="text-xs text-gray-300 mt-1">
+                                ${activity.reason || `Low strength (${strengthPercent}%) < required (${requiredPercent}%)`}
+                            </p>
+                            ${activity.signal ? `<p class="text-xs text-gray-500 mt-1">Signal: ${activity.signal.toUpperCase()} @ ${strengthPercent}% strength</p>` : ''}
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${time}</span>
                 </div>
             </div>
         `;
@@ -339,14 +490,55 @@ function renderActivityItem(activity) {
     }
 
     if (activity.action_type === 'error') {
+        // Determine error severity
+        const isCritical = activity.error_type && (
+            activity.error_type.toLowerCase().includes('critical') ||
+            activity.error_type.toLowerCase().includes('fatal')
+        );
+        const severityBadge = isCritical ? '🔴 Critical' : '⚠️ Error';
+        const borderColor = isCritical ? 'border-red-700' : 'border-orange-600';
+
+        // Format error details
+        let detailsHtml = '';
+        if (activity.pair) {
+            detailsHtml += `<div class="text-xs text-gray-400 mt-1">Pair: <span class="text-white">${activity.pair}</span></div>`;
+        }
+        if (activity.strategy) {
+            detailsHtml += `<div class="text-xs text-gray-400">Strategy: <span class="text-blue-400">${activity.strategy}</span></div>`;
+        }
+        if (activity.details) {
+            detailsHtml += `<div class="text-xs text-gray-500 mt-2">${activity.details}</div>`;
+        }
+
         return `
-            <div class="bg-red-900 bg-opacity-20 rounded-lg p-3 border border-red-700">
-                <div class="flex justify-between items-start">
+            <div class="bg-red-900 bg-opacity-30 rounded-lg p-4 border ${borderColor}">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">${icon}</span>
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-bold text-red-300 bg-red-900 bg-opacity-50 px-2 py-0.5 rounded">${severityBadge}</span>
+                                <p class="text-sm font-semibold text-red-400">${activity.error_type || 'Error'}</p>
+                            </div>
+                            <p class="text-sm text-gray-200 mt-1">${activity.message}</p>
+                            ${detailsHtml}
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    if (activity.action_type === 'no_signal') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600 hover:border-gray-500 transition">
+                <div class="flex justify-between items-center">
                     <div class="flex items-center gap-3">
                         <span class="text-xl">${icon}</span>
                         <div>
-                            <p class="text-sm font-semibold text-red-400">${activity.error_type || 'Error'}</p>
-                            <p class="text-xs text-gray-300 mt-1">${activity.message}</p>
+                            <p class="text-sm text-gray-400">${activity.pair || 'Unknown pair'} - No Signal</p>
+                            <p class="text-xs text-gray-500">${activity.reason || 'No trading signal detected'}</p>
                         </div>
                     </div>
                     <span class="text-xs text-gray-500">${time}</span>
@@ -355,6 +547,64 @@ function renderActivityItem(activity) {
         `;
     }
 
+    if (activity.action_type === 'pair_scan_start') {
+        return `
+            <div class="bg-gray-700 rounded-lg p-3 border border-gray-600 hover:border-gray-500 transition">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm text-blue-400">Scanning ${activity.pair || activity.pair_name || 'pair'}</p>
+                            ${activity.timeframes ? `<p class="text-xs text-gray-500">Timeframes: ${activity.timeframes.join(', ')}</p>` : ''}
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    if (activity.action_type === 'cycle_start') {
+        return `
+            <div class="bg-indigo-900 bg-opacity-20 rounded-lg p-3 border border-indigo-600">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm text-indigo-400 font-semibold">Cycle ${activity.cycle_number || ''} Started</p>
+                            <p class="text-xs text-gray-400">${activity.pairs_count || 0} pairs to analyze</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    if (activity.action_type === 'bot_started' || activity.action_type === 'bot_stopped') {
+        const isStarted = activity.action_type === 'bot_started';
+        const color = isStarted ? 'text-green-400' : 'text-gray-400';
+        const bgColor = isStarted ? 'bg-green-900' : 'bg-gray-800';
+        const borderColor = isStarted ? 'border-green-600' : 'border-gray-600';
+
+        return `
+            <div class="${bgColor} bg-opacity-20 rounded-lg p-3 border ${borderColor}">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xl">${icon}</span>
+                        <div>
+                            <p class="text-sm ${color} font-semibold">Bot ${isStarted ? 'Started' : 'Stopped'}</p>
+                            ${activity.pairs ? `<p class="text-xs text-gray-400">Pairs: ${activity.pairs.join(', ')}</p>` : ''}
+                            ${activity.mode ? `<p class="text-xs text-gray-500">Mode: ${activity.mode}</p>` : ''}
+                        </div>
+                    </div>
+                    <span class="text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Default fallback for unknown activity types
     return `
         <div class="bg-gray-700 rounded-lg p-3 border border-gray-600">
             <div class="flex justify-between items-center">

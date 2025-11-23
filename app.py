@@ -1169,6 +1169,13 @@ def set_active_strategy():
 
             active_info = strategy_manager.get_active_strategy_info()
 
+            # Update bot status tracker with new strategy info
+            from user_bot_status import get_user_bot_status_tracker
+            status_tracker = get_user_bot_status_tracker(current_user.id)
+            strategy_name = active_info.get('name', strategy_id) if active_info else strategy_id
+            status_tracker.update_strategy(strategy_id, strategy_name)
+            logger.info(f"User {current_user.id}: Updated bot status with strategy '{strategy_id}'")
+
             return jsonify({
                 'success': True,
                 'message': f'Active strategy set to: {strategy_id}',

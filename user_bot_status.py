@@ -139,6 +139,14 @@ class UserBotStatusTracker:
             status.last_decision_time = time.time()
             db.session.commit()
 
+    def update_strategy(self, strategy_id: str, strategy_name: str):
+        """Update active strategy"""
+        status = self._get_status_record()
+        if status:
+            status.active_strategy = strategy_id
+            status.active_strategy_name = strategy_name
+            db.session.commit()
+
     def get_status(self) -> Dict:
         """
         Get current bot status with calculated fields.
