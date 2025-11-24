@@ -164,13 +164,23 @@ def get_user_order_manager_instance():
 def get_user_signal_generator_instance():
     """Get user-specific signal generator with isolated data fetching"""
     if current_user.is_authenticated:
+        # Load user's strategy preference
+        user_strategy = None
+        try:
+            user_profile = UserProfile.query.filter_by(user_id=current_user.id).first()
+            if user_profile and user_profile.default_strategy:
+                user_strategy = user_profile.default_strategy
+        except Exception as e:
+            logger.warning(f"Could not load user strategy: {e}")
+
         user_fetcher = get_user_data_fetcher_instance()
         return get_user_signal_generator(
             user_id=current_user.id,
             data_fetcher=user_fetcher,
             indicator_config=config.INDICATORS,
             rsi_config=config.INDICATORS['RSI'],
-            use_strategy_system=config.STRATEGY_CONFIG.get('enabled', False)
+            use_strategy_system=config.STRATEGY_CONFIG.get('enabled', False),
+            user_strategy=user_strategy
         )
     return signal_generator  # Fallback to global
 
