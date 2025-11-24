@@ -637,15 +637,37 @@ function filterActivity(type) {
 }
 
 // Clear activity feed
-function clearActivityFeed() {
-    if (confirm('Clear all activity feed data? This cannot be undone.')) {
-        const feed = document.getElementById('activity-feed');
-        feed.innerHTML = `
-            <div class="text-center text-gray-400 py-8">
-                <p>Activity feed cleared</p>
-                <p class="text-xs text-gray-500 mt-2">New activities will appear here</p>
-            </div>
-        `;
+async function clearActivityFeed() {
+    if (confirm('Clear all activity feed data from database? This cannot be undone.')) {
+        try {
+            const response = await fetch('/api/bot/activity/clear', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Clear UI
+                const feed = document.getElementById('activity-feed');
+                feed.innerHTML = `
+                    <div class="text-center text-gray-400 py-8">
+                        <p>✓ Activity feed cleared from database</p>
+                        <p class="text-xs text-gray-500 mt-2">New activities will appear here</p>
+                    </div>
+                `;
+
+                // Show success notification
+                console.log('Activity feed cleared successfully');
+            } else {
+                alert('Error clearing activity feed: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error clearing activity feed:', error);
+            alert('Failed to clear activity feed');
+        }
     }
 }
 

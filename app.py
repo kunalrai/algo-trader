@@ -17,8 +17,8 @@ from signal_generator import SignalGenerator
 from indicators import TechnicalIndicators
 from market_depth import MarketDepthAnalyzer
 from simulated_wallet import SimulatedWallet
-# bot_status.py is deprecated - using database-backed user_bot_status instead
-# activity_log.py is deprecated - using database-backed user_activity_log instead
+# Legacy files removed: bot_status.py, activity_log.py, trading_bot.py, run_bot.py
+# Now using per-user isolation: user_bot_status, user_activity_log, user_trading_bot
 from strategies.strategy_manager import get_strategy_manager
 from strategies.custom_strategy_loader import get_custom_strategy_loader
 from models import db, init_db, User, UserProfile, UserTradingPair, CustomStrategy
@@ -961,6 +961,28 @@ def get_bot_activity():
     except Exception as e:
         logger.error(f"Error getting bot activity: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bot/activity/clear', methods=['POST'])
+@login_required
+def clear_bot_activity():
+    """Clear all activity feed data for the current user"""
+    try:
+        # Get per-user activity log
+        user_activity_log = get_user_activity_log(current_user.id)
+
+        # Clear all activities for this user
+        user_activity_log.clear_all_activities()
+
+        logger.info(f"User {current_user.id}: Cleared activity feed")
+
+        return jsonify({
+            'success': True,
+            'message': 'Activity feed cleared successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error clearing activity feed: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/wallet/history')
