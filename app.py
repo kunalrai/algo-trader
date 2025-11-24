@@ -164,13 +164,23 @@ def get_user_order_manager_instance():
 def get_user_signal_generator_instance():
     """Get user-specific signal generator with isolated data fetching"""
     if current_user.is_authenticated:
+        # Load user's strategy preference
+        user_strategy = None
+        try:
+            user_profile = UserProfile.query.filter_by(user_id=current_user.id).first()
+            if user_profile and user_profile.default_strategy:
+                user_strategy = user_profile.default_strategy
+        except Exception as e:
+            logger.warning(f"Could not load user strategy: {e}")
+
         user_fetcher = get_user_data_fetcher_instance()
         return get_user_signal_generator(
             user_id=current_user.id,
             data_fetcher=user_fetcher,
             indicator_config=config.INDICATORS,
             rsi_config=config.INDICATORS['RSI'],
-            use_strategy_system=config.STRATEGY_CONFIG.get('enabled', False)
+            use_strategy_system=config.STRATEGY_CONFIG.get('enabled', False),
+            user_strategy=user_strategy
         )
     return signal_generator  # Fallback to global
 
@@ -646,20 +656,20 @@ def get_signals():
                 signals.append({
                     'name': name,
                     'symbol': symbol,
-                    'action': signal['action'],
-                    'strength': round(signal['strength'], 2),
-                    'bullish_score': round(signal['bullish_score'], 2),
-                    'bearish_score': round(signal['bearish_score'], 2),
-                    'current_price': signal['current_price'],
+                    'action': signal.get('action', 'flat'),
+                    'strength': round(signal.get('strength', 0), 2),
+                    'bullish_score': round(signal.get('bullish_score', 0), 2),
+                    'bearish_score': round(signal.get('bearish_score', 0), 2),
+                    'current_price': signal.get('current_price', 0),
                     'analyses': {
                         tf: {
-                            'trend': analysis['trend'],
-                            'macd_signal': analysis['macd_signal'],
-                            'rsi_signal': analysis['rsi_signal'],
+                            'trend': analysis.get('trend', 'neutral'),
+                            'macd_signal': analysis.get('macd_signal', 'neutral'),
+                            'rsi_signal': analysis.get('rsi_signal', 'neutral'),
                             'rsi_value': round(analysis.get('rsi_value', 0), 2),
-                            'strength': round(analysis['strength'], 2)
+                            'strength': round(analysis.get('strength', 0), 2)
                         }
-                        for tf, analysis in signal['analyses'].items()
+                        for tf, analysis in signal.get('analyses', {}).items()
                     }
                 })
 

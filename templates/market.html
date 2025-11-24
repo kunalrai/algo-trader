@@ -264,7 +264,21 @@ async function fetchSignals() {
         if (!container) return;
 
         const response = await fetch('/api/signals');
-        const signals = await response.json();
+        const data = await response.json();
+
+        // Check for error response
+        if (data.error) {
+            console.error('Error from API:', data.error);
+            container.innerHTML = `
+                <div class="bg-red-500 bg-opacity-20 border border-red-500 rounded-lg p-4 text-center">
+                    <p class="text-red-400">Error loading signals: ${data.error}</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Make sure data is an array
+        const signals = Array.isArray(data) ? data : [];
 
         container.innerHTML = signals.map(signal => {
             let actionClass = 'text-gray-400';
