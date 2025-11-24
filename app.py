@@ -68,14 +68,11 @@ client = CoinDCXFuturesClient(
     base_url=config.BASE_URL
 )
 
+# Legacy global instances (deprecated - kept for backwards compatibility with some endpoints)
 data_fetcher = DataFetcher(client)
 position_manager = PositionManager(client, config.RISK_MANAGEMENT)
 wallet_manager = WalletManager(client)
-signal_generator = SignalGenerator(
-    data_fetcher,
-    config.INDICATORS,
-    config.INDICATORS['RSI']
-)
+# signal_generator removed - now using per-user signal generators only
 market_depth_analyzer = MarketDepthAnalyzer(client)
 
 # Initialize simulated wallet if in dry-run mode
@@ -182,7 +179,8 @@ def get_user_signal_generator_instance():
             use_strategy_system=config.STRATEGY_CONFIG.get('enabled', False),
             user_strategy=user_strategy
         )
-    return signal_generator  # Fallback to global
+    # No fallback - all endpoints should require authentication
+    raise ValueError("User must be authenticated to get signal generator")
 
 
 def get_user_trading_pairs():
