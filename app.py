@@ -656,20 +656,20 @@ def get_signals():
                 signals.append({
                     'name': name,
                     'symbol': symbol,
-                    'action': signal['action'],
-                    'strength': round(signal['strength'], 2),
-                    'bullish_score': round(signal['bullish_score'], 2),
-                    'bearish_score': round(signal['bearish_score'], 2),
-                    'current_price': signal['current_price'],
+                    'action': signal.get('action', 'flat'),
+                    'strength': round(signal.get('strength', 0), 2),
+                    'bullish_score': round(signal.get('bullish_score', 0), 2),
+                    'bearish_score': round(signal.get('bearish_score', 0), 2),
+                    'current_price': signal.get('current_price', 0),
                     'analyses': {
                         tf: {
-                            'trend': analysis['trend'],
-                            'macd_signal': analysis['macd_signal'],
-                            'rsi_signal': analysis['rsi_signal'],
+                            'trend': analysis.get('trend', 'neutral'),
+                            'macd_signal': analysis.get('macd_signal', 'neutral'),
+                            'rsi_signal': analysis.get('rsi_signal', 'neutral'),
                             'rsi_value': round(analysis.get('rsi_value', 0), 2),
-                            'strength': round(analysis['strength'], 2)
+                            'strength': round(analysis.get('strength', 0), 2)
                         }
-                        for tf, analysis in signal['analyses'].items()
+                        for tf, analysis in signal.get('analyses', {}).items()
                     }
                 })
 
