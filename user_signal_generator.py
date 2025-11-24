@@ -42,12 +42,25 @@ class UserSignalGenerator:
             rsi_config=rsi_config,
             use_strategy_system=use_strategy_system
         )
+
+        # Create a dedicated strategy manager instance for this user
+        # This ensures strategy isolation between users
+        if use_strategy_system and self._signal_generator.strategy_manager:
+            from strategies.strategy_manager import StrategyManager
+            self._user_strategy_manager = StrategyManager()
+            self._signal_generator.strategy_manager = self._user_strategy_manager
+
+            # Set the user's preferred strategy
+            if user_strategy:
+                self._user_strategy_manager.set_active_strategy(user_strategy)
+                logger.info(f"User {user_id}: Created dedicated strategy manager with strategy '{user_strategy}'")
+
         logger.debug(f"Created UserSignalGenerator for user {user_id} with strategy '{user_strategy}'")
 
     def generate_signal(self, pair: str, timeframes: Dict[str, str]) -> Dict:
         """
         Generate trading signal for a pair using user-isolated data fetching.
-        Ensures user's selected strategy is active before signal generation.
+        Uses the user's dedicated strategy manager for strategy isolation.
 
         Args:
             pair: Trading pair (e.g., 'BTCUSDT')
@@ -56,13 +69,8 @@ class UserSignalGenerator:
         Returns:
             Signal dict with action, strength, analyses, etc.
         """
-        # Ensure user's strategy is active before generating signal
-        if self.user_strategy and self._signal_generator.strategy_manager:
-            current_strategy_id = self._signal_generator.strategy_manager.get_active_strategy_id()
-            if current_strategy_id != self.user_strategy:
-                self._signal_generator.strategy_manager.set_active_strategy(self.user_strategy)
-                logger.debug(f"User {self.user_id}: Switched to strategy '{self.user_strategy}'")
-
+        # Each user has their own strategy manager, so no need to switch strategies
+        # Strategy isolation is guaranteed by the dedicated manager instance
         return self._signal_generator.generate_signal(pair, timeframes)
 
     def set_strategy(self, strategy_id: str) -> bool:
@@ -76,7 +84,13 @@ class UserSignalGenerator:
             True if successful
         """
         self.user_strategy = strategy_id
-        if self._signal_generator.strategy_manager:
+        # Use the user's dedicated strategy manager
+        if hasattr(self, '_user_strategy_manager') and self._user_strategy_manager:
+            success = self._user_strategy_manager.set_active_strategy(strategy_id)
+            if success:
+                logger.info(f"User {self.user_id}: Strategy changed to '{strategy_id}'")
+            return success
+        elif self._signal_generator.strategy_manager:
             return self._signal_generator.strategy_manager.set_active_strategy(strategy_id)
         return False
 

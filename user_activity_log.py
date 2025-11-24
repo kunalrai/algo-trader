@@ -288,6 +288,13 @@ class UserActivityLog:
 
         db.session.commit()
 
+    def clear_all_activities(self):
+        """Clear all activity entries for this user"""
+        deleted_count = UserActivity.query.filter_by(user_id=self.user_id).delete()
+        db.session.commit()
+        logger.info(f"User {self.user_id}: Cleared {deleted_count} activity entries")
+        return deleted_count
+
     def get_statistics(self) -> Dict:
         """Get activity statistics for this user"""
         from sqlalchemy import func

@@ -153,20 +153,19 @@ def initialize_database():
 
 
 def run_bot():
-    """Run the trading bot"""
-    logger.info("Starting trading bot...")
-    try:
-        subprocess.run([sys.executable, 'run_bot.py'])
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
-    except Exception as e:
-        logger.error(f"Error running bot: {e}")
+    """
+    DEPRECATED: Legacy global bot removed.
+    Per-user bots should be started from the dashboard UI.
+    Each user starts their own isolated bot via the web interface.
+    """
+    logger.info("Legacy global bot disabled - using per-user bot system")
+    logger.info("Users should start their own bots from the dashboard UI")
+    # No longer starting run_bot.py - per-user bots only
 
 
 def run_dashboard():
     """Run the dashboard"""
     logger.info("Starting dashboard...")
-    time.sleep(2)  # Wait for bot to initialize
 
     try:
         # Start Flask app via run_dashboard.py
@@ -211,10 +210,11 @@ def print_instructions():
     print("   Password: superadmin123#")
     print("   Access:   Profile Menu > Admin Dashboard")
 
-    print("\n⚙️  WHAT'S HAPPENING:")
-    print("   • Bot scans markets every 60 seconds")
-    print("   • Analyzes EMA, MACD, RSI, ATR indicators")
-    print("   • Opens positions when signals are strong (≥0.7)")
+    print("\n⚙️  HOW IT WORKS:")
+    print("   • Each user starts their own isolated bot from the dashboard")
+    print("   • Bot scans markets based on user's scan interval")
+    print("   • Analyzes using user's selected strategy (EMA, MACD, RSI, etc.)")
+    print("   • Opens positions when signals are strong enough")
     print("   • Dynamic TP/SL based on market volatility (ATR)")
     print("   • Monitors positions with TP/SL")
     print("   • Dashboard updates every 5 seconds")
@@ -224,9 +224,11 @@ def print_instructions():
     print("   2. Register with email or Google")
     print("   3. Go to Profile to configure:")
     print("      • Select trading pairs you want to trade")
+    print("      • Choose your trading strategy")
     print("      • Set risk management parameters")
     print("      • Add CoinDCX API keys for live trading (optional)")
-    print("   4. Start trading in paper mode or go live!")
+    print("   4. Click 'Start Bot' to begin trading!")
+    print("   5. Monitor your bot in the Activity feed")
 
     print("\n" + "="*70)
     print("\n⏳ System running... Open dashboard to get started\n")
@@ -260,16 +262,15 @@ def main():
 
     # Start components
     print("\n" + "="*70)
-    print("STARTING COMPONENTS")
+    print("STARTING DASHBOARD")
     print("="*70)
 
-    # Create threads for bot and dashboard
-    bot_thread = Thread(target=run_bot, daemon=True)
+    # Create threads for dashboard only (no global bot)
+    # Per-user bots are started from the UI by each user
     dashboard_thread = Thread(target=run_dashboard, daemon=True)
     browser_thread = Thread(target=open_browser, daemon=True)
 
-    # Start everything
-    bot_thread.start()
+    # Start dashboard
     dashboard_thread.start()
     browser_thread.start()
 

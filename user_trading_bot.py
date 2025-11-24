@@ -124,13 +124,20 @@ class UserTradingBot:
         # Get timeframes
         self.timeframes = config.TIMEFRAMES
 
-        # Initialize user-specific components
+        # Load user's saved strategy preference
+        user_strategy = 'combined'  # default
+        if profile and profile.default_strategy:
+            user_strategy = profile.default_strategy
+
+        # Initialize user-specific components with user's strategy
         self.data_fetcher = get_user_data_fetcher(self.user_id, self.client)
         self.signal_generator = get_user_signal_generator(
             user_id=self.user_id,
             data_fetcher=self.data_fetcher,
             indicator_config=config.INDICATORS,
-            rsi_config=config.INDICATORS['RSI']
+            rsi_config=config.INDICATORS['RSI'],
+            use_strategy_system=config.STRATEGY_CONFIG.get('enabled', False),
+            user_strategy=user_strategy
         )
         self.order_manager = get_user_order_manager(
             self.user_id, self.client, self.risk_config, is_paper_mode
@@ -140,19 +147,11 @@ class UserTradingBot:
         )
         self.wallet_manager = get_user_wallet_manager(self.user_id)
 
-        # Load user's saved strategy preference
-        user_strategy = 'combined'  # default
-        if profile and profile.default_strategy:
-            user_strategy = profile.default_strategy
-
-        # Set the user's strategy in the strategy manager
-        from strategies.strategy_manager import get_strategy_manager
-        strategy_manager = get_strategy_manager()
-        if strategy_manager.set_active_strategy(user_strategy):
-            logger.info(f"User {self.user_id}: Loaded saved strategy '{user_strategy}'")
+        # Verify the user's strategy was set correctly in their dedicated strategy manager
+        if self.signal_generator.user_strategy == user_strategy:
+            logger.info(f"User {self.user_id}: Loaded saved strategy '{user_strategy}' in dedicated strategy manager")
         else:
             logger.warning(f"User {self.user_id}: Could not load strategy '{user_strategy}', using default")
-            strategy_manager.set_active_strategy('combined')
 
         # Log activity
         activity_log = get_user_activity_log(self.user_id)
@@ -206,11 +205,25 @@ class UserTradingBot:
                 self.is_running = True
                 self.start_time = time.time()
 
+                # Get active strategy info from the user's signal generator (not global)
+                strategy_id = self.signal_generator.user_strategy or 'combined'
+                strategy_name = strategy_id  # Default to ID if name not available
+
+                # Try to get the actual strategy name from the generator's strategy manager
+                if self.signal_generator._signal_generator.strategy_manager:
+                    active_strategy = self.signal_generator._signal_generator.strategy_manager.get_strategy(strategy_id)
+                    if active_strategy:
+                        strategy_name = active_strategy.name
+
+                logger.info(f"User {self.user_id}: Bot starting with strategy '{strategy_id}' ({strategy_name})")
+
                 # Update status tracker
                 status_tracker = get_user_bot_status_tracker(self.user_id)
                 status_tracker.start_bot(
                     scan_interval=self.trading_params.get('signal_scan_interval', 60),
-                    pairs=list(self.trading_pairs.values())
+                    pairs=list(self.trading_pairs.values()),
+                    strategy_id=strategy_id,
+                    strategy_name=strategy_name
                 )
 
                 # Log bot start
