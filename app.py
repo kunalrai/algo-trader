@@ -1114,7 +1114,9 @@ def get_chart_data(symbol):
 def list_strategies():
     """Get list of all available strategies"""
     try:
-        strategy_manager = get_strategy_manager()
+        # Get the user's strategy manager to list strategies
+        from strategies.strategy_manager import get_user_strategy_manager
+        strategy_manager = get_user_strategy_manager(current_user.id)
         strategies = strategy_manager.list_strategies()
         return jsonify({
             'success': True,
@@ -1135,12 +1137,12 @@ def get_active_strategy():
         user_profile = UserProfile.query.filter_by(user_id=current_user.id).first()
         user_strategy_id = user_profile.default_strategy if user_profile and user_profile.default_strategy else 'combined'
 
-        # Create a temporary strategy manager to get strategy info
-        # This doesn't affect any other users since we don't store it globally
-        from strategies.strategy_manager import StrategyManager
-        temp_manager = StrategyManager()
-        temp_manager.set_active_strategy(user_strategy_id)
-        active_info = temp_manager.get_active_strategy_info()
+        # Get the user's dedicated strategy manager
+        # Each user has their own isolated instance that persists
+        from strategies.strategy_manager import get_user_strategy_manager
+        user_manager = get_user_strategy_manager(current_user.id)
+        user_manager.set_active_strategy(user_strategy_id)
+        active_info = user_manager.get_active_strategy_info()
 
         return jsonify({
             'success': True,
@@ -1165,16 +1167,16 @@ def set_active_strategy():
         if not strategy_id:
             return jsonify({'success': False, 'error': 'strategy_id required'}), 400
 
-        # Validate strategy exists using a temporary manager
-        from strategies.strategy_manager import StrategyManager
-        temp_manager = StrategyManager()
+        # Get the user's dedicated strategy manager
+        from strategies.strategy_manager import get_user_strategy_manager
+        user_manager = get_user_strategy_manager(current_user.id)
 
         # Get custom params if provided, otherwise use config
         params = data.get('params')
         if not params and strategy_id in config.STRATEGY_CONFIG.get('strategy_params', {}):
             params = config.STRATEGY_CONFIG['strategy_params'][strategy_id]
 
-        success = temp_manager.set_active_strategy(strategy_id, params)
+        success = user_manager.set_active_strategy(strategy_id, params)
 
         if success:
             # Save user's strategy preference to database for per-user isolation
@@ -1193,7 +1195,7 @@ def set_active_strategy():
             # Update the cached signal generator with the new strategy (user-specific)
             update_user_strategy(current_user.id, strategy_id)
 
-            active_info = temp_manager.get_active_strategy_info()
+            active_info = user_manager.get_active_strategy_info()
 
             # Update bot status tracker with new strategy info
             from user_bot_status import get_user_bot_status_tracker
@@ -1358,8 +1360,9 @@ def upload_custom_strategy():
         success, strategy_class, error = loader.load_strategy_from_file(filename)
 
         if success and strategy_class:
-            # Register with strategy manager
-            strategy_manager = get_strategy_manager()
+            # Register with the user's strategy manager
+            from strategies.strategy_manager import get_user_strategy_manager
+            strategy_manager = get_user_strategy_manager(current_user.id)
             strategy_manager.register_strategy(strategy_id, strategy_class)
 
             logger.info(f"User {current_user.id} uploaded custom strategy: {strategy_id}")

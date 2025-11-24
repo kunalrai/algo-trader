@@ -43,17 +43,17 @@ class UserSignalGenerator:
             use_strategy_system=use_strategy_system
         )
 
-        # Create a dedicated strategy manager instance for this user
-        # This ensures strategy isolation between users
+        # Get or create the user's dedicated strategy manager instance
+        # This ensures strategy isolation between users - each user gets their own persistent manager
         if use_strategy_system and self._signal_generator.strategy_manager:
-            from strategies.strategy_manager import StrategyManager
-            self._user_strategy_manager = StrategyManager()
+            from strategies.strategy_manager import get_user_strategy_manager
+            self._user_strategy_manager = get_user_strategy_manager(user_id)
             self._signal_generator.strategy_manager = self._user_strategy_manager
 
             # Set the user's preferred strategy
             if user_strategy:
                 self._user_strategy_manager.set_active_strategy(user_strategy)
-                logger.info(f"User {user_id}: Created dedicated strategy manager with strategy '{user_strategy}'")
+                logger.info(f"User {user_id}: Using dedicated strategy manager with strategy '{user_strategy}'")
 
         logger.debug(f"Created UserSignalGenerator for user {user_id} with strategy '{user_strategy}'")
 

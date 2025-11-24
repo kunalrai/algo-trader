@@ -196,34 +196,97 @@ async function fetchChartDataForPair(pair) {
         chart.data.datasets[0].data = prices;
         chart.data.datasets = [chart.data.datasets[0]];
 
-        // Add support/resistance lines
+        // Add support/resistance zones (shaded areas)
         const sr = data.support_resistance;
-        if (sr.support_levels && sr.support_levels.length > 0) {
-            sr.support_levels.forEach(level => {
+
+        // Add support zones as shaded areas
+        if (sr.support_zones && sr.support_zones.length > 0) {
+            sr.support_zones.forEach((zone, index) => {
+                // Add upper boundary of support zone
                 chart.data.datasets.push({
-                    label: `Support ${level.toFixed(2)}`,
-                    data: timestamps.map(() => level),
+                    label: `Support Zone ${zone.center.toFixed(2)}`,
+                    data: timestamps.map(() => zone.upper),
+                    borderColor: 'rgba(16, 185, 129, 0.6)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    borderWidth: 1,
+                    borderDash: [3, 3],
+                    fill: '+1',  // Fill to the next dataset (lower boundary)
+                    pointRadius: 0,
+                    tension: 0,
+                    order: 10 + index * 2
+                });
+
+                // Add lower boundary of support zone
+                chart.data.datasets.push({
+                    label: `Support Zone Lower ${zone.center.toFixed(2)}`,
+                    data: timestamps.map(() => zone.lower),
+                    borderColor: 'rgba(16, 185, 129, 0.6)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    borderWidth: 1,
+                    borderDash: [3, 3],
+                    fill: false,
+                    pointRadius: 0,
+                    tension: 0,
+                    order: 10 + index * 2 + 1
+                });
+
+                // Add center line for reference
+                chart.data.datasets.push({
+                    label: `Support ${zone.center.toFixed(2)}`,
+                    data: timestamps.map(() => zone.center),
                     borderColor: '#10b981',
                     borderWidth: 2,
                     borderDash: [5, 5],
                     fill: false,
                     pointRadius: 0,
-                    tension: 0
+                    tension: 0,
+                    order: 10 + index * 2
                 });
             });
         }
 
-        if (sr.resistance_levels && sr.resistance_levels.length > 0) {
-            sr.resistance_levels.forEach(level => {
+        // Add resistance zones as shaded areas
+        if (sr.resistance_zones && sr.resistance_zones.length > 0) {
+            sr.resistance_zones.forEach((zone, index) => {
+                // Add upper boundary of resistance zone
                 chart.data.datasets.push({
-                    label: `Resistance ${level.toFixed(2)}`,
-                    data: timestamps.map(() => level),
+                    label: `Resistance Zone ${zone.center.toFixed(2)}`,
+                    data: timestamps.map(() => zone.upper),
+                    borderColor: 'rgba(239, 68, 68, 0.6)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                    borderWidth: 1,
+                    borderDash: [3, 3],
+                    fill: '+1',  // Fill to the next dataset (lower boundary)
+                    pointRadius: 0,
+                    tension: 0,
+                    order: 20 + index * 2
+                });
+
+                // Add lower boundary of resistance zone
+                chart.data.datasets.push({
+                    label: `Resistance Zone Lower ${zone.center.toFixed(2)}`,
+                    data: timestamps.map(() => zone.lower),
+                    borderColor: 'rgba(239, 68, 68, 0.6)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                    borderWidth: 1,
+                    borderDash: [3, 3],
+                    fill: false,
+                    pointRadius: 0,
+                    tension: 0,
+                    order: 20 + index * 2 + 1
+                });
+
+                // Add center line for reference
+                chart.data.datasets.push({
+                    label: `Resistance ${zone.center.toFixed(2)}`,
+                    data: timestamps.map(() => zone.center),
                     borderColor: '#ef4444',
                     borderWidth: 2,
                     borderDash: [5, 5],
                     fill: false,
                     pointRadius: 0,
-                    tension: 0
+                    tension: 0,
+                    order: 20 + index * 2
                 });
             });
         }

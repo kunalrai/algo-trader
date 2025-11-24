@@ -563,43 +563,102 @@ class TechnicalIndicators:
                     lows[i] < lows[i+1] and lows[i] < lows[i+2]):
                     support_points.append(lows[i])
 
-            def cluster_levels(levels, tolerance=0.005):
+            def cluster_levels_with_zones(levels, tolerance=0.005):
                 if not levels:
-                    return []
+                    return [], []
 
                 levels = sorted(levels)
                 clusters = []
+                zones = []
                 current_cluster = [levels[0]]
 
                 for level in levels[1:]:
                     if abs(level - current_cluster[-1]) / current_cluster[-1] < tolerance:
                         current_cluster.append(level)
                     else:
-                        clusters.append(sum(current_cluster) / len(current_cluster))
+                        cluster_center = sum(current_cluster) / len(current_cluster)
+                        zone_upper = max(current_cluster)
+                        zone_lower = min(current_cluster)
+                        zone_range = zone_upper - zone_lower
+                        if zone_range < cluster_center * 0.002:  # Min 0.2% range
+                            zone_range = cluster_center * 0.002
+                        zone_upper = cluster_center + zone_range / 2
+                        zone_lower = cluster_center - zone_range / 2
+
+                        clusters.append(cluster_center)
+                        zones.append({'upper': zone_upper, 'lower': zone_lower, 'center': cluster_center})
                         current_cluster = [level]
 
                 if current_cluster:
-                    clusters.append(sum(current_cluster) / len(current_cluster))
+                    cluster_center = sum(current_cluster) / len(current_cluster)
+                    zone_upper = max(current_cluster)
+                    zone_lower = min(current_cluster)
+                    zone_range = zone_upper - zone_lower
+                    if zone_range < cluster_center * 0.002:
+                        zone_range = cluster_center * 0.002
+                    zone_upper = cluster_center + zone_range / 2
+                    zone_lower = cluster_center - zone_range / 2
 
-                return clusters
+                    clusters.append(cluster_center)
+                    zones.append({'upper': zone_upper, 'lower': zone_lower, 'center': cluster_center})
 
-            clustered_resistance = cluster_levels(resistance_points)
-            clustered_support = cluster_levels(support_points)
+                return clusters, zones
 
-            resistance_levels = sorted([r for r in clustered_resistance if r > current_price])[:num_levels]
-            support_levels = sorted([s for s in clustered_support if s < current_price], reverse=True)[:num_levels]
+            clustered_resistance, resistance_zones_raw = cluster_levels_with_zones(resistance_points)
+            clustered_support, support_zones_raw = cluster_levels_with_zones(support_points)
 
+            # Filter and combine levels with zones
+            resistance_data = [(r, z) for r, z in zip(clustered_resistance, resistance_zones_raw) if r > current_price]
+            support_data = [(s, z) for s, z in zip(clustered_support, support_zones_raw) if s < current_price]
+
+            resistance_data = sorted(resistance_data, key=lambda x: x[0])[:num_levels]
+            support_data = sorted(support_data, key=lambda x: x[0], reverse=True)[:num_levels]
+
+            resistance_levels = [r[0] for r in resistance_data]
+            resistance_zones = [r[1] for r in resistance_data]
+            support_levels = [s[0] for s in support_data]
+            support_zones = [s[1] for s in support_data]
+
+            # Add fallback levels with zones if needed
             while len(resistance_levels) < num_levels:
                 next_resistance = current_price * (1 + 0.02 * (len(resistance_levels) + 1))
                 resistance_levels.append(next_resistance)
+                zone_range = next_resistance * 0.002
+                resistance_zones.append({
+                    'upper': next_resistance + zone_range / 2,
+                    'lower': next_resistance - zone_range / 2,
+                    'center': next_resistance
+                })
 
             while len(support_levels) < num_levels:
                 next_support = current_price * (1 - 0.02 * (len(support_levels) + 1))
                 support_levels.append(next_support)
+                zone_range = next_support * 0.002
+                support_zones.append({
+                    'upper': next_support + zone_range / 2,
+                    'lower': next_support - zone_range / 2,
+                    'center': next_support
+                })
 
             return {
                 'support_levels': [round(s, 2) for s in support_levels[:num_levels]],
                 'resistance_levels': [round(r, 2) for r in resistance_levels[:num_levels]],
+                'support_zones': [
+                    {
+                        'upper': round(z['upper'], 2),
+                        'lower': round(z['lower'], 2),
+                        'center': round(z['center'], 2)
+                    }
+                    for z in support_zones[:num_levels]
+                ],
+                'resistance_zones': [
+                    {
+                        'upper': round(z['upper'], 2),
+                        'lower': round(z['lower'], 2),
+                        'center': round(z['center'], 2)
+                    }
+                    for z in resistance_zones[:num_levels]
+                ],
                 'current_price': round(current_price, 2)
             }
 
@@ -608,6 +667,8 @@ class TechnicalIndicators:
             return {
                 'support_levels': [],
                 'resistance_levels': [],
+                'support_zones': [],
+                'resistance_zones': [],
                 'current_price': 0
             }
 

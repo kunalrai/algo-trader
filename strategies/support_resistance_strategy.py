@@ -139,6 +139,8 @@ class SupportResistanceStrategy(BaseStrategy):
                     'current_price': current_price,
                     'support_levels': support_levels,
                     'resistance_levels': resistance_levels,
+                    'support_zones': sr_levels.get('support_zones', []),
+                    'resistance_zones': sr_levels.get('resistance_zones', []),
                     'atr': atr_value,
                     'stop_loss_distance': stop_loss_distance,
                     'stop_loss_price': round(stop_loss_price, 2),
@@ -158,9 +160,14 @@ class SupportResistanceStrategy(BaseStrategy):
             return self._flat_signal(f"Analysis error: {str(e)}")
 
     def _calculate_support_resistance(self, df: pd.DataFrame) -> Dict:
-        """Calculate support and resistance levels from price data"""
+        """Calculate support and resistance levels with zones from price data"""
         if df.empty or len(df) < self.params['lookback_period']:
-            return {'support_levels': [], 'resistance_levels': []}
+            return {
+                'support_levels': [],
+                'resistance_levels': [],
+                'support_zones': [],
+                'resistance_zones': []
+            }
 
         lookback = self.params['lookback_period']
         num_levels = self.params['num_levels']
@@ -187,45 +194,105 @@ class SupportResistanceStrategy(BaseStrategy):
                 lows[i] < lows[i+1] and lows[i] < lows[i+2]):
                 support_points.append(lows[i])
 
-        # Cluster nearby levels
-        def cluster_levels(levels):
+        # Cluster nearby levels and create zones
+        def cluster_levels_with_zones(levels):
             if not levels:
-                return []
+                return [], []
             levels = sorted(levels)
             clusters = []
+            zones = []
             current_cluster = [levels[0]]
 
             for level in levels[1:]:
                 if abs(level - current_cluster[-1]) / current_cluster[-1] < tolerance:
                     current_cluster.append(level)
                 else:
-                    clusters.append(sum(current_cluster) / len(current_cluster))
+                    # Calculate cluster center and zone range
+                    cluster_center = sum(current_cluster) / len(current_cluster)
+                    zone_upper = max(current_cluster)
+                    zone_lower = min(current_cluster)
+                    # Expand zone slightly based on cluster density
+                    zone_range = zone_upper - zone_lower
+                    if zone_range < cluster_center * 0.002:  # Min 0.2% range
+                        zone_range = cluster_center * 0.002
+                    zone_upper = cluster_center + zone_range / 2
+                    zone_lower = cluster_center - zone_range / 2
+
+                    clusters.append(cluster_center)
+                    zones.append({'upper': zone_upper, 'lower': zone_lower, 'center': cluster_center})
                     current_cluster = [level]
 
             if current_cluster:
-                clusters.append(sum(current_cluster) / len(current_cluster))
+                cluster_center = sum(current_cluster) / len(current_cluster)
+                zone_upper = max(current_cluster)
+                zone_lower = min(current_cluster)
+                zone_range = zone_upper - zone_lower
+                if zone_range < cluster_center * 0.002:
+                    zone_range = cluster_center * 0.002
+                zone_upper = cluster_center + zone_range / 2
+                zone_lower = cluster_center - zone_range / 2
 
-            return clusters
+                clusters.append(cluster_center)
+                zones.append({'upper': zone_upper, 'lower': zone_lower, 'center': cluster_center})
 
-        clustered_resistance = cluster_levels(resistance_points)
-        clustered_support = cluster_levels(support_points)
+            return clusters, zones
 
-        # Filter levels based on current price
-        resistance_levels = sorted([r for r in clustered_resistance if r > current_price])[:num_levels]
-        support_levels = sorted([s for s in clustered_support if s < current_price], reverse=True)[:num_levels]
+        clustered_resistance, resistance_zones_raw = cluster_levels_with_zones(resistance_points)
+        clustered_support, support_zones_raw = cluster_levels_with_zones(support_points)
+
+        # Filter levels and zones based on current price
+        resistance_data = [(r, z) for r, z in zip(clustered_resistance, resistance_zones_raw) if r > current_price]
+        support_data = [(s, z) for s, z in zip(clustered_support, support_zones_raw) if s < current_price]
+
+        # Sort and limit
+        resistance_data = sorted(resistance_data, key=lambda x: x[0])[:num_levels]
+        support_data = sorted(support_data, key=lambda x: x[0], reverse=True)[:num_levels]
+
+        resistance_levels = [r[0] for r in resistance_data]
+        resistance_zones = [r[1] for r in resistance_data]
+        support_levels = [s[0] for s in support_data]
+        support_zones = [s[1] for s in support_data]
 
         # Add fallback levels if not enough found
         while len(resistance_levels) < num_levels:
             next_r = current_price * (1 + 0.02 * (len(resistance_levels) + 1))
             resistance_levels.append(next_r)
+            zone_range = next_r * 0.002
+            resistance_zones.append({
+                'upper': next_r + zone_range / 2,
+                'lower': next_r - zone_range / 2,
+                'center': next_r
+            })
 
         while len(support_levels) < num_levels:
             next_s = current_price * (1 - 0.02 * (len(support_levels) + 1))
             support_levels.append(next_s)
+            zone_range = next_s * 0.002
+            support_zones.append({
+                'upper': next_s + zone_range / 2,
+                'lower': next_s - zone_range / 2,
+                'center': next_s
+            })
 
         return {
             'support_levels': [round(s, 2) for s in support_levels],
             'resistance_levels': [round(r, 2) for r in resistance_levels],
+            'support_zones': [
+                {
+                    'upper': round(z['upper'], 2),
+                    'lower': round(z['lower'], 2),
+                    'center': round(z['center'], 2)
+                }
+                for z in support_zones
+            ],
+            'resistance_zones': [
+                {
+                    'upper': round(z['upper'], 2),
+                    'lower': round(z['lower'], 2),
+                    'center': round(z['center'], 2)
+                }
+                for z in resistance_zones
+            ],
             'current_price': round(current_price, 2)
         }
 
