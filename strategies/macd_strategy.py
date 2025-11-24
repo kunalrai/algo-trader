@@ -31,7 +31,7 @@ class MACDStrategy(BaseStrategy):
         return ['5m', '1h']
 
     def get_required_indicators(self) -> List[str]:
-        return ['macd', 'macd_signal', 'macd_hist', 'ema_9', 'ema_21']
+        return ['MACD', 'MACD_signal', 'MACD_hist', 'EMA_9', 'EMA_21']
 
     def analyze(self, data: Dict[str, pd.DataFrame], current_price: float) -> Dict:
         """Analyze MACD signals"""
@@ -46,14 +46,14 @@ class MACDStrategy(BaseStrategy):
         if len(df_5m) < 2:
             return self._flat_signal("Not enough data points")
 
-        macd = df_5m['macd'].iloc[-1]
-        macd_signal = df_5m['macd_signal'].iloc[-1]
-        macd_hist = df_5m['macd_hist'].iloc[-1]
-        prev_hist = df_5m['macd_hist'].iloc[-2]
+        macd = df_5m['MACD'].iloc[-1]
+        macd_signal = df_5m['MACD_signal'].iloc[-1]
+        macd_hist = df_5m['MACD_hist'].iloc[-1]
+        prev_hist = df_5m['MACD_hist'].iloc[-2]
 
         # Detect crossovers
-        bullish_cross = (macd > macd_signal) and (df_5m['macd'].iloc[-2] <= df_5m['macd_signal'].iloc[-2])
-        bearish_cross = (macd < macd_signal) and (df_5m['macd'].iloc[-2] >= df_5m['macd_signal'].iloc[-2])
+        bullish_cross = (macd > macd_signal) and (df_5m['MACD'].iloc[-2] <= df_5m['MACD_signal'].iloc[-2])
+        bearish_cross = (macd < macd_signal) and (df_5m['MACD'].iloc[-2] >= df_5m['MACD_signal'].iloc[-2])
 
         # Histogram analysis
         hist_growing = macd_hist > prev_hist
@@ -95,10 +95,10 @@ class MACDStrategy(BaseStrategy):
         # Confirm with 1h trend if enabled
         if self.params['confirm_with_trend'] and '1h' in data:
             df_1h = data['1h']
-            ema_fast_1h = df_1h['ema_9'].iloc[-1]
-            ema_slow_1h = df_1h['ema_21'].iloc[-1]
-            macd_1h = df_1h['macd'].iloc[-1]
-            signal_1h = df_1h['macd_signal'].iloc[-1]
+            ema_fast_1h = df_1h['EMA_9'].iloc[-1]
+            ema_slow_1h = df_1h['EMA_21'].iloc[-1]
+            macd_1h = df_1h['MACD'].iloc[-1]
+            signal_1h = df_1h['MACD_signal'].iloc[-1]
 
             trend_bullish = (ema_fast_1h > ema_slow_1h) and (macd_1h > signal_1h)
             trend_bearish = (ema_fast_1h < ema_slow_1h) and (macd_1h < signal_1h)

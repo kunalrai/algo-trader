@@ -41,7 +41,7 @@ class SupportResistanceStrategy(BaseStrategy):
         return ['5m', '1h', '4h']
 
     def get_required_indicators(self) -> List[str]:
-        return ['close', 'high', 'low', 'open', 'atr', 'ema_21', 'ema_50']
+        return ['close', 'high', 'low', 'open', 'ATR', 'EMA_21', 'EMA_50']
 
     def analyze(self, data: Dict[str, pd.DataFrame], current_price: float) -> Dict:
         """

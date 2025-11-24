@@ -33,7 +33,7 @@ class EMACrossoverStrategy(BaseStrategy):
         return ['5m']
 
     def get_required_indicators(self) -> List[str]:
-        return ['ema_9', 'ema_21', 'close']
+        return ['EMA_9', 'EMA_21', 'close']
 
     def analyze(self, data: Dict[str, pd.DataFrame], current_price: float) -> Dict:
         """Analyze EMA crossovers"""
@@ -50,10 +50,10 @@ class EMACrossoverStrategy(BaseStrategy):
             if len(df) < 2:
                 continue
 
-            ema_fast = df['ema_9'].iloc[-1]
-            ema_slow = df['ema_21'].iloc[-1]
-            prev_fast = df['ema_9'].iloc[-2]
-            prev_slow = df['ema_21'].iloc[-2]
+            ema_fast = df['EMA_9'].iloc[-1]
+            ema_slow = df['EMA_21'].iloc[-1]
+            prev_fast = df['EMA_9'].iloc[-2]
+            prev_slow = df['EMA_21'].iloc[-2]
 
             # Detect crossover
             bullish_cross = (ema_fast > ema_slow) and (prev_fast <= prev_slow)
@@ -98,8 +98,8 @@ class EMACrossoverStrategy(BaseStrategy):
             'confidence': final_strength,
             'reasons': reasons,
             'indicators': {
-                'ema_fast': data['5m']['ema_9'].iloc[-1],
-                'ema_slow': data['5m']['ema_21'].iloc[-1],
+                'ema_fast': data['5m']['EMA_9'].iloc[-1],
+                'ema_slow': data['5m']['EMA_21'].iloc[-1],
                 'current_price': current_price
             },
             'metadata': {

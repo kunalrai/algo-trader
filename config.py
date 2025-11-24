@@ -33,7 +33,7 @@ TIMEFRAMES = {
 
 # Technical Indicator Settings
 INDICATORS = {
-    "EMA": [9, 15, 20, 50, 200],
+    "EMA": [9, 15, 20, 21, 50, 200],
     "MACD": {
         "fast": 12,
         "slow": 26,

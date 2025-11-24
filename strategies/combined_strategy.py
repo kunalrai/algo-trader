@@ -34,7 +34,7 @@ class CombinedStrategy(BaseStrategy):
         return self.params['timeframes']
 
     def get_required_indicators(self) -> List[str]:
-        return ['ema_9', 'ema_21', 'macd', 'macd_signal', 'macd_hist', 'rsi', 'close']
+        return ['EMA_9', 'EMA_21', 'MACD', 'MACD_signal', 'MACD_hist', 'RSI', 'close']
 
     def analyze(self, data: Dict[str, pd.DataFrame], current_price: float) -> Dict:
         """Analyze using combined indicators"""
@@ -90,11 +90,11 @@ class CombinedStrategy(BaseStrategy):
             'confidence': final_strength,
             'reasons': reasons,
             'indicators': {
-                'ema_9': data['5m']['ema_9'].iloc[-1],
-                'ema_21': data['5m']['ema_21'].iloc[-1],
-                'macd': data['5m']['macd'].iloc[-1],
-                'macd_signal': data['5m']['macd_signal'].iloc[-1],
-                'rsi': data['5m']['rsi'].iloc[-1],
+                'EMA_9': data['5m']['EMA_9'].iloc[-1],
+                'EMA_21': data['5m']['EMA_21'].iloc[-1],
+                'MACD': data['5m']['MACD'].iloc[-1],
+                'MACD_signal': data['5m']['MACD_signal'].iloc[-1],
+                'RSI': data['5m']['RSI'].iloc[-1],
                 'current_price': current_price
             },
             'metadata': {
@@ -105,12 +105,12 @@ class CombinedStrategy(BaseStrategy):
 
     def _analyze_timeframe(self, df: pd.DataFrame, timeframe: str, current_price: float) -> Dict:
         """Analyze single timeframe with all indicators"""
-        ema_9 = df['ema_9'].iloc[-1]
-        ema_21 = df['ema_21'].iloc[-1]
-        macd = df['macd'].iloc[-1]
-        macd_signal = df['macd_signal'].iloc[-1]
-        macd_hist = df['macd_hist'].iloc[-1]
-        rsi = df['rsi'].iloc[-1]
+        ema_9 = df['EMA_9'].iloc[-1]
+        ema_21 = df['EMA_21'].iloc[-1]
+        macd = df['MACD'].iloc[-1]
+        macd_signal = df['MACD_signal'].iloc[-1]
+        macd_hist = df['MACD_hist'].iloc[-1]
+        rsi = df['RSI'].iloc[-1]
 
         # EMA analysis
         ema_bullish = ema_9 > ema_21

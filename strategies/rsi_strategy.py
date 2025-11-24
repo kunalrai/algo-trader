@@ -33,7 +33,7 @@ class RSIStrategy(BaseStrategy):
         return ['5m', '1h']
 
     def get_required_indicators(self) -> List[str]:
-        return ['rsi', 'close']
+        return ['RSI', 'close']
 
     def analyze(self, data: Dict[str, pd.DataFrame], current_price: float) -> Dict:
         """Analyze RSI conditions"""
@@ -44,11 +44,11 @@ class RSIStrategy(BaseStrategy):
 
         # Analyze 5m RSI
         df_5m = data['5m']
-        rsi_5m = df_5m['rsi'].iloc[-1]
+        rsi_5m = df_5m['RSI'].iloc[-1]
 
         # Analyze 1h RSI for confirmation
         df_1h = data['1h']
-        rsi_1h = df_1h['rsi'].iloc[-1]
+        rsi_1h = df_1h['RSI'].iloc[-1]
 
         action = 'flat'
         strength = 0.0
@@ -136,7 +136,7 @@ class RSIStrategy(BaseStrategy):
             return None
 
         recent_prices = df['close'].iloc[-10:]
-        recent_rsi = df['rsi'].iloc[-10:]
+        recent_rsi = df['RSI'].iloc[-10:]
 
         # Bullish divergence: price making lower lows, RSI making higher lows
         price_trend = recent_prices.iloc[-1] < recent_prices.iloc[0]
