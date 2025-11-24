@@ -259,17 +259,32 @@ class SignalGenerator:
                     atr_value = float(atr_series.iloc[-1])
                     logger.debug(f"ATR({atr_period}) for {pair}: {atr_value:.4f}")
 
+            # Build analyses dict for compatibility with legacy format
+            analyses = {}
+            for tf_name, df in multi_tf_data.items():
+                if not df.empty:
+                    analyses[tf_name] = {
+                        'trend': 'neutral',
+                        'macd_signal': 'neutral',
+                        'rsi_signal': 'neutral',
+                        'rsi_value': df['RSI'].iloc[-1] if 'RSI' in df.columns else 0,
+                        'strength': strategy_signal['strength']
+                    }
+
             # Convert strategy signal to expected format
             signal = {
                 'pair': pair,
                 'action': strategy_signal['action'],
                 'strength': strategy_signal['strength'],
+                'bullish_score': strategy_signal['strength'] if strategy_signal['action'] == 'long' else 0,
+                'bearish_score': strategy_signal['strength'] if strategy_signal['action'] == 'short' else 0,
                 'current_price': current_price,
                 'reasons': strategy_signal['reasons'],
                 'confidence': strategy_signal.get('confidence', strategy_signal['strength']),
                 'indicators': strategy_signal.get('indicators', {}),
                 'strategy_name': active_strategy.name,
                 'strategy_metadata': strategy_signal.get('metadata', {}),
+                'analyses': analyses,
                 'timestamp': pd.Timestamp.now(),
                 'atr': atr_value
             }
